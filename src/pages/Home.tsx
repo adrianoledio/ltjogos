@@ -7,15 +7,7 @@ import { HeroCarousel } from '../components/home/HeroCarousel';
 import { CategoryFilter } from '../components/home/CategoryFilter';
 
 const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[3/4]', compact = false, badge }) => (
-  <motion.div
-    layout
-    initial={{ opacity: 0, scale: 0.9 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.9 }}
-    whileHover={{ y: -8, scale: 1.02 }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="relative group"
-  >
+  <div className="relative group">
     <Link
       to={`/app/games/${game.id}`}
       className={`block ${aspect} glass-card overflow-hidden group-hover:border-brand-primary/30 transition-all duration-500 relative z-10`}
@@ -25,15 +17,15 @@ const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean,
         <img
           src={game.thumbnail}
           alt={game.name}
-          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+          className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-surface-dark via-black/20 to-transparent opacity-90 group-hover:opacity-60 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-surface-dark via-black/20 to-transparent opacity-90 transition-opacity duration-500" />
       </div>
 
       {/* Badge */}
       {badge && (
-        <div className="absolute top-3 left-3 px-2.5 py-1 bg-gradient-to-r from-brand-secondary to-brand-primary text-white text-[8px] font-black uppercase tracking-widest rounded-lg shadow-xl z-20 animate-pulse">
+        <div className="absolute top-3 left-3 px-2.5 py-1 bg-gradient-to-r from-brand-secondary to-brand-primary text-white text-[8px] font-black uppercase tracking-widest rounded-lg shadow-xl z-20">
           {badge}
         </div>
       )}
@@ -46,7 +38,7 @@ const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean,
       {/* Hover Overlay Glow */}
       <div className="absolute inset-0 bg-brand-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-30" />
     </Link>
-  </motion.div>
+  </div>
 );
 
 export function Home() {

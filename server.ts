@@ -32,15 +32,17 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Test Supabase connection on startup
-async function testSupabase() {
+// Test and Seed Supabase connection on startup
+async function testAndSeedSupabase() {
   try {
     const tables = ["users", "games", "transactions", "settings", "notifications", "promotions", "banners"];
+    let reachable = true;
     for (const table of tables) {
       const { error } = await supabase.from(table).select("id").limit(1);
       if (error) {
         if (error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND") || error.message?.includes("fetch")) {
           console.log("Supabase is unreachable. Running in LocalStorage / Offline mode as requested.");
+          reachable = false;
           break;
         }
         console.log(`Supabase check info for table '${table}':`, error.message);
@@ -48,11 +50,184 @@ async function testSupabase() {
         console.log(`Supabase connection successful for table '${table}'.`);
       }
     }
+
+    if (reachable) {
+      console.log("Seeding default data if empty...");
+
+      // 1. Seed settings
+      const { data: settingsData, error: settingsError } = await supabase.from("settings").select("id").eq("id", "global").single();
+      if (settingsError && (settingsError.code === "PGRST116" || settingsError.message?.includes("contains 0 rows"))) {
+        console.log("Seeding DEFAULT_SETTINGS to Supabase...");
+        const DEFAULT_SETTINGS = {
+          siteName: "LT JOGOS",
+          logo: "",
+          primaryColor: "#FFCC00",
+          globalMusic: "",
+          minDeposit: 20,
+          minWithdrawal: 60,
+          custoRealPorPremio: 50,
+          valorApareceParaJogador: 200,
+          limiteUsuarioDiario: 100,
+          limitePlataformaDiario: 500,
+          platformDailyPrizeTotal: 0,
+          lastPlatformPrizeDate: new Date().toISOString().split('T')[0],
+          mpAccessToken: "",
+          gamePrizes: [
+            {
+              gameId: "slots",
+              premios: [
+                { tipo: "Comum", peso: 50, premioMin: 50, premioMax: 50, custoReal: 12.5 },
+                { tipo: "Médio", peso: 30, premioMin: 100, premioMax: 100, custoReal: 25 },
+                { tipo: "Raro", peso: 15, premioMin: 150, premioMax: 180, custoReal: 37.5 },
+                { tipo: "Premium", peso: 5, premioMin: 180, premioMax: 200, custoReal: 50 }
+              ]
+            },
+            {
+              gameId: "roletas",
+              premios: [
+                { tipo: "Comum (R$ 1)", peso: 65, premioMin: 1, premioMax: 1, custoReal: 0.25 },
+                { tipo: "Médio (R$ 20)", peso: 20, premioMin: 20, premioMax: 20, custoReal: 5 },
+                { tipo: "Raro (R$ 50)", peso: 10, premioMin: 50, premioMax: 50, custoReal: 12.5 },
+                { tipo: "Premium (R$ 100+)", peso: 5, premioMin: 100, premioMax: 500, custoReal: 25 }
+              ]
+            }
+          ],
+          referralsForFirstWithdrawal: 3
+        };
+        await supabase.from("settings").insert({ id: "global", data: DEFAULT_SETTINGS });
+      }
+
+      // 2. Seed games
+      const { data: gamesData, error: gamesError } = await supabase.from("games").select("id").limit(1);
+      if (!gamesError && (!gamesData || gamesData.length === 0)) {
+        console.log("Seeding DEFAULT_GAMES to Supabase...");
+        const DEFAULT_GAMES = [
+          {
+            id: 'mystic-ink',
+            name: 'Mystic Ink',
+            active: true,
+            minBet: 1,
+            maxBet: 100,
+            rtp: 95,
+            thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
+            bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
+            bgContainer: 'rgba(0,0,0,0.8)',
+            bgMusic: '',
+            category: 'slots',
+          },
+          {
+            id: 'wild-tattoo',
+            name: 'Wild Tattoo',
+            active: true,
+            minBet: 1,
+            maxBet: 100,
+            rtp: 96,
+            thumbnail: 'https://picsum.photos/seed/tattoo/400/300',
+            bgPage: '',
+            bgContainer: '',
+            bgMusic: '',
+            category: 'slots',
+          },
+          {
+            id: 'tattoo-cash',
+            name: 'Tattoo Cash',
+            active: true,
+            minBet: 0.5,
+            maxBet: 100,
+            rtp: 97,
+            thumbnail: 'https://images.unsplash.com/photo-1590247813693-5541d1c609fd?q=80&w=800&auto=format&fit=crop',
+            bgPage: '',
+            bgContainer: '',
+            bgMusic: '',
+            category: 'slots',
+          },
+          {
+            id: 'tattoo-slot',
+            name: 'Tattoo Slot',
+            active: true,
+            minBet: 0.5,
+            maxBet: 100,
+            rtp: 98,
+            thumbnail: 'https://images.unsplash.com/photo-1598252571565-794637d7a2ee?q=80&w=800&auto=format&fit=crop',
+            bgPage: '',
+            bgContainer: '',
+            bgMusic: '',
+            category: 'slots',
+          },
+          {
+            id: 'roleta-pix',
+            name: 'Roleta da Sorte',
+            active: true,
+            minBet: 1,
+            maxBet: 100,
+            rtp: 97,
+            thumbnail: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=800&auto=format&fit=crop',
+            bgPage: '',
+            bgContainer: '',
+            bgMusic: '',
+            category: 'roletas',
+          },
+        ];
+        
+        for (const g of DEFAULT_GAMES) {
+          await supabase.from("games").upsert(g);
+        }
+      }
+
+      // 3. Seed default admin users if they do not exist
+      const { data: usersData, error: usersError } = await supabase.from("users").select("id");
+      if (!usersError && usersData) {
+        const hasAdmin1 = usersData.some(u => u.id === 'admin-1');
+        const hasAdminPhone = usersData.some(u => u.id === 'admin-phone-21982331392');
+
+        if (!hasAdmin1) {
+          console.log("Seeding default admin-1 user...");
+          await supabase.from("users").upsert({
+            id: "admin-1",
+            name: "Admin",
+            email: "admin@ltjogos.com",
+            password: "admin",
+            role: "admin",
+            balance: 100,
+            earnings: 0,
+            createdAt: new Date().toISOString(),
+            dailyPrizeTotal: 0,
+            lastPrizeDate: new Date().toISOString().split("T")[0],
+            referrals: 0,
+            unlockFirstWithdrawal: true,
+            referralLink: "",
+            withdrawalsCount: 0,
+            phone: null
+          });
+        }
+
+        if (!hasAdminPhone) {
+          console.log("Seeding default admin-phone-21982331392 user...");
+          await supabase.from("users").upsert({
+            id: "admin-phone-21982331392",
+            name: "Tatuador Adriano Ledio",
+            email: "tatuador.adrianoledio@gmail.com",
+            phone: "21982331392",
+            password: "megabell",
+            role: "admin",
+            balance: 999999,
+            earnings: 0,
+            createdAt: new Date().toISOString(),
+            dailyPrizeTotal: 0,
+            lastPrizeDate: new Date().toISOString().split("T")[0],
+            referrals: 0,
+            unlockFirstWithdrawal: true,
+            referralLink: "https://example.com/register?ref=admin-phone-21982331392",
+            withdrawalsCount: 0
+          });
+        }
+      }
+    }
   } catch (err: any) {
-    console.log("Unexpected error testing Supabase:", err.message || err);
+    console.log("Unexpected error testing/seeding Supabase:", err.message || err);
   }
 }
-testSupabase();
+testAndSeedSupabase();
 
 async function startServer() {
   const app = express();
@@ -83,7 +258,7 @@ async function startServer() {
 
   app.post("/api/users", async (req, res) => {
     try {
-      const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted } = req.body;
+      const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
       const { error } = await supabase.from("users").upsert({
         id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, 
         referrals: referrals || 0, 
@@ -91,7 +266,8 @@ async function startServer() {
         referralLink: referralLink || '', 
         withdrawalsCount: withdrawalsCount || 0, 
         referredBy: referredBy || null, 
-        referralCounted: referralCounted ? true : false
+        referralCounted: referralCounted ? true : false,
+        phone: phone || null
       });
       if (error) {
         console.error("Supabase error saving user:", error);
