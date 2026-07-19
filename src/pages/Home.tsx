@@ -81,7 +81,7 @@ export function Home() {
 
         <motion.div 
           layout
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6"
+          className="grid grid-cols-3 gap-3 sm:gap-6"
         >
           <AnimatePresence mode="popLayout">
             {filteredGames.map((game, i) => (
