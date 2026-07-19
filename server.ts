@@ -274,8 +274,10 @@ async function startServer() {
   });
 
   app.post("/api/users", async (req, res) => {
+    console.log("POST /api/users called");
     try {
       const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
+      console.log("Saving user:", id);
       const { error } = await supabase.from("users").upsert({
         id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, 
         referrals: referrals || 0, 
