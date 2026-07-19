@@ -262,13 +262,18 @@ class LocalDB {
 
     // Sync to API
     try {
-      await fetch('/api/users', {
+      const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedUser)
       });
-    } catch (e) {
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP error ${res.status}`);
+      }
+    } catch (e: any) {
       console.warn("Could not sync user update to API:", e);
+      throw e;
     }
   }
 

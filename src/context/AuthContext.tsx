@@ -47,8 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (phoneOrEmail: string, pass: string) => {
+    const cleanedInput = phoneOrEmail.includes('@') ? phoneOrEmail : phoneOrEmail.replace(/\D/g, '');
     const users = await db.getUsers();
-    const found = users.find((u) => (u.phone === phoneOrEmail || u.email === phoneOrEmail) && u.password === pass);
+    const found = users.find((u) => {
+      const uPhoneCleaned = u.phone ? u.phone.replace(/\D/g, '') : '';
+      const uEmail = u.email ? u.email.toLowerCase() : '';
+      const search = cleanedInput.toLowerCase();
+      return (uPhoneCleaned === search || uEmail === search) && u.password === pass;
+    });
+
     if (found) {
       let updated = false;
       if (!found.referralLink) {
@@ -56,7 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updated = true;
       }
       if (updated) {
-        await db.updateUser(found);
+        try {
+          await db.updateUser(found);
+        } catch (e) {
+          console.warn("Could not sync logged in user link:", e);
+        }
       }
       setUser(found);
       localStorage.setItem('lt_active_user', found.id);
@@ -66,8 +77,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (name: string, phone: string, pass: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone) {
+      throw new Error('Número de telefone inválido.');
+    }
+
     const users = await db.getUsers();
-    if (users.find((u) => u.phone === phone || u.email === phone)) return false;
+    
+    // Check if phone or email already exists
+    const duplicate = users.find((u) => {
+      const uPhoneCleaned = u.phone ? u.phone.replace(/\D/g, '') : '';
+      const emailPattern = `${cleanPhone}@ltjogos.com`.toLowerCase();
+      return uPhoneCleaned === cleanPhone || (u.email && u.email.toLowerCase() === emailPattern);
+    });
+
+    if (duplicate) {
+      throw new Error('Telefone já cadastrado.');
+    }
 
     const userId = Math.random().toString(36).substring(2, 9);
     const referralLink = `${window.location.origin}/register?ref=${userId}`;
@@ -84,12 +110,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const isPhoneAdmin = phone === '21982331392';
+    const isPhoneAdmin = cleanPhone === '21982331392';
     const newUser: User = {
       id: userId,
       name,
-      email: isPhoneAdmin ? 'tatuador.adrianoledio@gmail.com' : `${phone}@ltjogos.com`,
-      phone,
+      email: isPhoneAdmin ? 'tatuador.adrianoledio@gmail.com' : `${cleanPhone}@ltjogos.com`,
+      phone: cleanPhone,
       password: pass,
       role: isPhoneAdmin ? 'admin' : 'user',
       balance: isPhoneAdmin ? 999999 : 0,
@@ -105,10 +131,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       referralCounted: false,
     };
 
-    await db.updateUser(newUser);
-    setUser(newUser);
-    localStorage.setItem('lt_active_user', newUser.id);
-    return true;
+    try {
+      await db.updateUser(newUser);
+      setUser(newUser);
+      localStorage.setItem('lt_active_user', newUser.id);
+      return true;
+    } catch (err: any) {
+      console.error("Database save failed during registration:", err);
+      throw new Error(err.message || 'Erro ao registrar no servidor.');
+    }
   };
 
   const logout = () => {

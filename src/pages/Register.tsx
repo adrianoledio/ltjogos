@@ -16,11 +16,15 @@ export function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await register(name, phone, password);
-    if (success) {
-      navigate('/app');
-    } else {
-      setError('Telefone já cadastrado');
+    try {
+      const success = await register(name, phone, password);
+      if (success) {
+        navigate('/app');
+      } else {
+        setError('Erro ao criar conta');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erro ao realizar o cadastro');
     }
   };
 

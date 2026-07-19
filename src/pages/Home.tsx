@@ -2,41 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { db, GameConfig } from '../data/db';
-import { Play, Trophy, Sparkles, Star, RotateCw } from 'lucide-react';
+import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp } from 'lucide-react';
 import { HeroCarousel } from '../components/home/HeroCarousel';
 import { CategoryFilter } from '../components/home/CategoryFilter';
 
-const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[3/4]', compact = false, badge }) => (
+const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge }) => (
   <div className="relative group">
     <Link
       to={`/app/games/${game.id}`}
-      className={`block ${aspect} glass-card overflow-hidden group-hover:border-brand-primary/30 transition-all duration-500 relative z-10`}
+      className={`block ${aspect} relative overflow-hidden rounded-[18px] border border-white/10 group-hover:border-brand-primary/40 transition-all duration-300 shadow-xl z-10 bg-surface-dark`}
     >
-      {/* Image */}
-      <div className="absolute inset-0 overflow-hidden">
+      {/* Cover Image - completely clean with no zoom, no overlays, and no text truncation */}
+      <div className="absolute inset-0">
         <img
           src={game.thumbnail}
           alt={game.name}
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-surface-dark via-black/20 to-transparent opacity-90 transition-opacity duration-500" />
       </div>
-
-      {/* Badge */}
-      {badge && (
-        <div className="absolute top-3 left-3 px-2.5 py-1 bg-gradient-to-r from-brand-secondary to-brand-primary text-white text-[8px] font-black uppercase tracking-widest rounded-lg shadow-xl z-20">
-          {badge}
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 z-20">
-        <h3 className="text-[10px] font-bold text-white leading-tight truncate drop-shadow-md group-hover:text-brand-primary transition-colors uppercase tracking-widest">{game.name}</h3>
-      </div>
-      
-      {/* Hover Overlay Glow */}
-      <div className="absolute inset-0 bg-brand-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-30" />
     </Link>
   </div>
 );
