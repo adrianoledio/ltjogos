@@ -47,7 +47,7 @@ export function Topbar() {
               <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform origin-top-right z-50 scale-95 group-hover:scale-100">
                 <div className="p-4 border-b border-white/5 bg-gradient-to-br from-white/5 to-transparent rounded-t-2xl">
                   <p className="font-bold text-sm text-white truncate">{user.name}</p>
-                  <p className="text-[10px] text-white/40 truncate font-medium">{user.email}</p>
+                  <p className="text-[10px] text-white/40 truncate font-medium">{user.phone || user.email}</p>
                 </div>
                 <div className="p-1 space-y-1">
                   {user.role === 'admin' && (

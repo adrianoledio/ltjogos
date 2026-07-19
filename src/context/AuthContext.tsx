@@ -4,8 +4,8 @@ import { db, User } from '../data/db';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<boolean>;
-  register: (name: string, email: string, pass: string) => Promise<boolean>;
+  login: (phoneOrEmail: string, pass: string) => Promise<boolean>;
+  register: (name: string, phone: string, pass: string) => Promise<boolean>;
   logout: () => void;
   updateBalance: (amount: number, type: 'deposit' | 'withdraw' | 'bet' | 'win', gameId?: string, metadata?: any) => Promise<void>;
 }
@@ -45,9 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (email: string, pass: string) => {
+  const login = async (phoneOrEmail: string, pass: string) => {
     const users = await db.getUsers();
-    const found = users.find((u) => u.email === email && u.password === pass);
+    const found = users.find((u) => (u.phone === phoneOrEmail || u.email === phoneOrEmail) && u.password === pass);
     if (found) {
       let updated = false;
       if (!found.referralLink) {
@@ -64,9 +64,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
-  const register = async (name: string, email: string, pass: string) => {
+  const register = async (name: string, phone: string, pass: string) => {
     const users = await db.getUsers();
-    if (users.find((u) => u.email === email)) return false;
+    if (users.find((u) => u.phone === phone || u.email === phone)) return false;
 
     const userId = Math.random().toString(36).substring(2, 9);
     const referralLink = `${window.location.origin}/register?ref=${userId}`;
@@ -86,16 +86,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const newUser: User = {
       id: userId,
       name,
-      email,
+      email: `${phone}@ltjogos.com`,
+      phone,
       password: pass,
-      role: email === 'admin@ltjogos.com' ? 'admin' : 'user',
-      balance: email === 'admin@ltjogos.com' ? 999999 : 0,
+      role: 'user',
+      balance: 0,
       earnings: 0,
       createdAt: new Date().toISOString(),
       dailyPrizeTotal: 0,
       lastPrizeDate: new Date().toISOString().split('T')[0],
       referrals: 0,
-      unlockFirstWithdrawal: email === 'admin@ltjogos.com',
+      unlockFirstWithdrawal: false,
       referralLink,
       withdrawalsCount: 0,
       referredBy,

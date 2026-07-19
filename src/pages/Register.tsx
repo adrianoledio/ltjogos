@@ -5,7 +5,7 @@ import { UserPlus } from 'lucide-react';
 
 export function Register() {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { register, user, loading } = useAuth();
@@ -16,11 +16,11 @@ export function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await register(name, email, password);
+    const success = await register(name, phone, password);
     if (success) {
       navigate('/app');
     } else {
-      setError('Email já cadastrado');
+      setError('Telefone já cadastrado');
     }
   };
 
@@ -54,13 +54,13 @@ export function Register() {
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Email</label>
+              <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Telefone</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="input-field"
-                placeholder="seu@email.com"
+                placeholder="(99) 99999-9999"
                 required
               />
             </div>

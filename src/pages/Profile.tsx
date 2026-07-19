@@ -16,7 +16,7 @@ export function Profile() {
         </div>
         <div>
           <h2 className="text-xl font-bold">{user.name}</h2>
-          <p className="text-sm text-white/50">{user.email}</p>
+          <p className="text-sm text-white/50">{user.phone || user.email}</p>
           <div className="mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
             {user.role === 'admin' ? 'Administrador' : 'Verificado'}
           </div>

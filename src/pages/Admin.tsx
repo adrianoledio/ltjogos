@@ -464,7 +464,7 @@ export function Admin() {
                           </div>
                           <div>
                             <p className={`text-[10px] font-black ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{u.name}</p>
-                            <p className={`text-[7px] font-bold ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>{u.email}</p>
+                            <p className={`text-[7px] font-bold ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>{u.phone || u.email}</p>
                           </div>
                         </div>
                       </td>
@@ -944,7 +944,7 @@ export function Admin() {
                                   {users.find(u => u.id === tx.userId)?.name || 'Unknown'}
                                 </span>
                                 <span className={`text-[7px] font-bold ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>
-                                  {users.find(u => u.id === tx.userId)?.email || 'no-email'}
+                                  {users.find(u => u.id === tx.userId)?.phone || users.find(u => u.id === tx.userId)?.email || 'no-phone'}
                                 </span>
                               </div>
                             </div>
@@ -1025,7 +1025,7 @@ export function Admin() {
                                   {users.find(u => u.id === tx.userId)?.name || 'Unknown'}
                                 </span>
                                 <span className={`text-[7px] font-bold ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>
-                                  {users.find(u => u.id === tx.userId)?.email || 'no-email'}
+                                  {users.find(u => u.id === tx.userId)?.phone || users.find(u => u.id === tx.userId)?.email || 'no-phone'}
                                 </span>
                               </div>
                             </div>

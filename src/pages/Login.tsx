@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { LogIn } from 'lucide-react';
 
 export function Login() {
-  const [email, setEmail] = useState('');
+  const [phoneOrEmail, setPhoneOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login, user, loading } = useAuth();
@@ -15,7 +15,7 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login(email, password);
+    const success = await login(phoneOrEmail, password);
     if (success) {
       navigate('/app');
     } else {
@@ -42,13 +42,13 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Email</label>
+              <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Telefone</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={phoneOrEmail}
+                onChange={(e) => setPhoneOrEmail(e.target.value)}
                 className="input-field"
-                placeholder="seu@email.com"
+                placeholder="(99) 99999-9999"
                 required
               />
             </div>
