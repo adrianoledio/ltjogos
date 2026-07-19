@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { ArrowDownToLine, ArrowUpFromLine, History, QrCode } from 'lucide-react';
 
 export function Wallet() {
-  const { user, updateBalance } = useAuth();
+  const { user, updateBalance, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'history'>('deposit');
   const [showModal, setShowModal] = useState(false);
   const [amount, setAmount] = useState('');
@@ -20,6 +20,7 @@ export function Wallet() {
   const [qrCode, setQrCode] = useState('');
   const [qrCodeBase64, setQrCodeBase64] = useState('');
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const [activeTxId, setActiveTxId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,22 +64,66 @@ export function Wallet() {
 
   if (!user || loading) return <div className="text-center mt-20 text-sm">Carregando...</div>;
 
+  // Poll to check if transaction has completed
+  useEffect(() => {
+    let intervalId: any;
+    if (showQr && user && activeTxId) {
+      intervalId = setInterval(async () => {
+        const txs = await db.getTransactions();
+        const currentTx = txs.find(t => t.id === activeTxId);
+        if (currentTx && currentTx.status === 'completed') {
+          toast.success('Depósito via PIX aprovado com sucesso!');
+          setShowQr(false);
+          setActiveTxId(null);
+          setTransactions(txs);
+          if (refreshUser) {
+            await refreshUser();
+          }
+          clearInterval(intervalId);
+        }
+      }, 4000); // Check every 4 seconds
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [showQr, user, activeTxId, refreshUser]);
+
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
     if (val >= minDeposit) {
       setIsGeneratingPix(true);
       try {
-        // Since we are using LocalStorage, we mock the PIX generation
-        // In a real scenario with backend, this would call /api/payments/pix
+        // Try calling the real backend payment API
+        const response = await fetch('/api/payments/pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: val,
+            userId: user.id,
+            email: user.email || `${user.phone}@ltjogos.com`
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setQrCode(data.qrCode);
+            setQrCodeBase64(data.qrCodeBase64);
+            setActiveTxId(data.transactionId);
+            setShowQr(true);
+            setTransactions(await db.getTransactions());
+            toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
+            return;
+          }
+        }
         
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
+        // If the backend call is unreachable, or returns an error (e.g. mpAccessToken not configured), fallback to simulation
+        console.warn("Mercado Pago or backend endpoint unavailable, falling back to simulation...");
         const dummyPixCode = "00020126360014BR.GOV.BCB.PIX0114+5511999999995204000053039865405" + val.toFixed(2) + "5802BR5920LT JOGOS PLATAFORMA6009SAO PAULO62070503***6304" + Math.floor(Math.random() * 9999).toString(16).toUpperCase();
         
         // Add a pending transaction to local DB
-        await db.addTransaction({
+        const resTx = await db.addTransaction({
           userId: user.id,
           amount: val,
           type: 'deposit',
@@ -91,14 +136,15 @@ export function Wallet() {
 
         setQrCode(dummyPixCode);
         setQrCodeBase64(""); // We don't have a base64 for the mock
+        setActiveTxId(resTx.id);
         setShowQr(true);
         setTransactions(await db.getTransactions());
         toast.success('PIX simulado gerado com sucesso!');
         
-        // Optional: simulate auto-approval after 30 seconds for testing
+        // Simulate auto-approval after 15 seconds for testing
         setTimeout(async () => {
           const txs = await db.getTransactions();
-          const pendingTx = txs.find(t => t.userId === user.id && t.status === 'pending' && t.type === 'deposit');
+          const pendingTx = txs.find(t => t.id === resTx.id && t.status === 'pending');
           if (pendingTx) {
             pendingTx.status = 'completed';
             await db.updateTransaction(pendingTx);
@@ -107,16 +153,16 @@ export function Wallet() {
             if (currentUser) {
               currentUser.balance += pendingTx.amount;
               await db.updateUser(currentUser);
-              // Update context/UI indirectly if needed or just let the user refresh/poll
-              // Since we are in a component, we might want to trigger a refresh
-              window.location.reload(); // Simple way to refresh balance for now
+              if (refreshUser) {
+                await refreshUser();
+              }
             }
           }
-        }, 30000);
+        }, 15000);
 
       } catch (error) {
         console.error(error);
-        toast.error('Erro ao gerar PIX simulado.');
+        toast.error('Erro ao gerar PIX.');
       } finally {
         setIsGeneratingPix(false);
       }

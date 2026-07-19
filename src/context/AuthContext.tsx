@@ -8,6 +8,7 @@ interface AuthContextType {
   register: (name: string, phone: string, pass: string) => Promise<boolean>;
   logout: () => void;
   updateBalance: (amount: number, type: 'deposit' | 'withdraw' | 'bet' | 'win', gameId?: string, metadata?: any) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -143,8 +144,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const refreshUser = async () => {
+    if (user) {
+      const found = await db.getUser(user.id);
+      if (found) {
+        setUser(found);
+      }
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateBalance }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateBalance, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

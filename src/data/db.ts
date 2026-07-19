@@ -229,6 +229,18 @@ class LocalDB {
 
   // Users
   async getUsers(): Promise<User[]> {
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          this.setStorageItem('lt_users', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch users from API, using localStorage cache:", e);
+    }
     return this.getStorageItem<User[]>('lt_users', []);
   }
 
@@ -238,7 +250,8 @@ class LocalDB {
   }
 
   async updateUser(updatedUser: User) {
-    const users = await this.getUsers();
+    // Sync locally first
+    const users = this.getStorageItem<User[]>('lt_users', []);
     const index = users.findIndex(u => u.id === updatedUser.id);
     if (index !== -1) {
       users[index] = updatedUser;
@@ -246,36 +259,97 @@ class LocalDB {
       users.push(updatedUser);
     }
     this.setStorageItem('lt_users', users);
+
+    // Sync to API
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser)
+      });
+    } catch (e) {
+      console.warn("Could not sync user update to API:", e);
+    }
   }
 
   // Transactions
   async getTransactions(): Promise<Transaction[]> {
+    try {
+      const res = await fetch('/api/transactions');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          this.setStorageItem('lt_transactions', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch transactions from API, using localStorage cache:", e);
+    }
     return this.getStorageItem<Transaction[]>('lt_transactions', []);
   }
 
   async addTransaction(tx: Omit<Transaction, 'id' | 'date'>) {
-    const transactions = await this.getTransactions();
     const newTx = {
       ...tx,
       id: Math.random().toString(36).substring(2, 9),
       date: new Date().toISOString(),
     };
+
+    // Sync locally first
+    const transactions = this.getStorageItem<Transaction[]>('lt_transactions', []);
     transactions.push(newTx);
     this.setStorageItem('lt_transactions', transactions);
+
+    // Sync to API
+    try {
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTx)
+      });
+    } catch (e) {
+      console.warn("Could not sync new transaction to API:", e);
+    }
+
     return newTx;
   }
 
   async updateTransaction(tx: Transaction) {
-    const transactions = await this.getTransactions();
+    // Sync locally first
+    const transactions = this.getStorageItem<Transaction[]>('lt_transactions', []);
     const index = transactions.findIndex(t => t.id === tx.id);
     if (index !== -1) {
       transactions[index] = tx;
       this.setStorageItem('lt_transactions', transactions);
     }
+
+    // Sync to API
+    try {
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tx)
+      });
+    } catch (e) {
+      console.warn("Could not sync transaction update to API:", e);
+    }
   }
 
   // Games
   async getGames(): Promise<GameConfig[]> {
+    try {
+      const res = await fetch('/api/games');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          this.setStorageItem('lt_games', data);
+          return data.filter(g => g.category === 'slots' || g.category === 'roletas');
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch games from API, using localStorage cache:", e);
+    }
     const games = this.getStorageItem<GameConfig[]>('lt_games', []);
     const list = games.length > 0 ? games : DEFAULT_GAMES;
     return list.filter(g => g.category === 'slots' || g.category === 'roletas');
@@ -287,7 +361,8 @@ class LocalDB {
   }
 
   async updateGame(updatedGame: GameConfig) {
-    const games = await this.getGames();
+    // Sync locally first
+    const games = this.getStorageItem<GameConfig[]>('lt_games', []);
     const index = games.findIndex(g => g.id === updatedGame.id);
     if (index !== -1) {
       games[index] = updatedGame;
@@ -295,6 +370,17 @@ class LocalDB {
       games.push(updatedGame);
     }
     this.setStorageItem('lt_games', games);
+
+    // Sync to API
+    try {
+      await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedGame)
+      });
+    } catch (e) {
+      console.warn("Could not sync game update to API:", e);
+    }
   }
 
   async addGame(game: GameConfig) {
@@ -303,81 +389,212 @@ class LocalDB {
 
   // Settings
   async getSettings(): Promise<SystemSettings> {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          this.setStorageItem('lt_settings', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch settings from API, using localStorage cache:", e);
+    }
     const settings = this.getStorageItem<SystemSettings | null>('lt_settings', null);
     return settings || DEFAULT_SETTINGS;
   }
 
   async saveSettings(settings: SystemSettings) {
     this.setStorageItem('lt_settings', settings);
+
+    // Sync to API
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+    } catch (e) {
+      console.warn("Could not sync settings to API:", e);
+    }
   }
 
   // Notifications
   async getNotifications(): Promise<Notification[]> {
+    try {
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          this.setStorageItem('lt_notifications', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch notifications from API, using localStorage cache:", e);
+    }
     return this.getStorageItem<Notification[]>('lt_notifications', []);
   }
 
   async addNotification(notification: Omit<Notification, 'id' | 'createdAt'>) {
-    const notifications = await this.getNotifications();
     const newNotification = {
       ...notification,
       id: Math.random().toString(36).substring(2, 9),
       createdAt: new Date().toISOString(),
     };
+
+    // Sync locally
+    const notifications = this.getStorageItem<Notification[]>('lt_notifications', []);
     notifications.push(newNotification);
     this.setStorageItem('lt_notifications', notifications);
+
+    // Sync to API
+    try {
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newNotification)
+      });
+    } catch (e) {
+      console.warn("Could not sync notification to API:", e);
+    }
+
     return newNotification;
   }
 
   async deleteNotification(id: string) {
-    const notifications = await this.getNotifications();
+    // Sync locally
+    const notifications = this.getStorageItem<Notification[]>('lt_notifications', []);
     const filtered = notifications.filter(n => n.id !== id);
     this.setStorageItem('lt_notifications', filtered);
+
+    // Sync to API
+    try {
+      await fetch(`/api/notifications/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.warn("Could not sync notification deletion to API:", e);
+    }
   }
 
   // Promotions
   async getPromotions(): Promise<Promotion[]> {
+    try {
+      const res = await fetch('/api/promotions');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          this.setStorageItem('lt_promotions', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch promotions from API, using localStorage cache:", e);
+    }
     return this.getStorageItem<Promotion[]>('lt_promotions', []);
   }
 
   async addPromotion(promotion: Omit<Promotion, 'id' | 'createdAt'>) {
-    const promotions = await this.getPromotions();
     const newPromotion = {
       ...promotion,
       id: Math.random().toString(36).substring(2, 9),
       createdAt: new Date().toISOString(),
     };
+
+    // Sync locally
+    const promotions = this.getStorageItem<Promotion[]>('lt_promotions', []);
     promotions.push(newPromotion);
     this.setStorageItem('lt_promotions', promotions);
+
+    // Sync to API
+    try {
+      await fetch('/api/promotions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPromotion)
+      });
+    } catch (e) {
+      console.warn("Could not sync promotion to API:", e);
+    }
+
     return newPromotion;
   }
 
   async deletePromotion(id: string) {
-    const promotions = await this.getPromotions();
+    // Sync locally
+    const promotions = this.getStorageItem<Promotion[]>('lt_promotions', []);
     const filtered = promotions.filter(p => p.id !== id);
     this.setStorageItem('lt_promotions', filtered);
+
+    // Sync to API
+    try {
+      await fetch(`/api/promotions/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.warn("Could not sync promotion deletion to API:", e);
+    }
   }
 
   // Banners
   async getBanners(): Promise<Banner[]> {
+    try {
+      const res = await fetch('/api/banners');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          this.setStorageItem('lt_banners', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch banners from API, using localStorage cache:", e);
+    }
     return this.getStorageItem<Banner[]>('lt_banners', []);
   }
 
   async addBanner(banner: Omit<Banner, 'id' | 'createdAt'>) {
-    const banners = await this.getBanners();
     const newBanner = {
       ...banner,
       id: Math.random().toString(36).substring(2, 9),
       createdAt: new Date().toISOString(),
     };
+
+    // Sync locally
+    const banners = this.getStorageItem<Banner[]>('lt_banners', []);
     banners.push(newBanner);
     this.setStorageItem('lt_banners', banners);
+
+    // Sync to API
+    try {
+      await fetch('/api/banners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBanner)
+      });
+    } catch (e) {
+      console.warn("Could not sync banner to API:", e);
+    }
+
     return newBanner;
   }
 
   async deleteBanner(id: string) {
-    const banners = await this.getBanners();
+    // Sync locally
+    const banners = this.getStorageItem<Banner[]>('lt_banners', []);
     const filtered = banners.filter(b => b.id !== id);
     this.setStorageItem('lt_banners', filtered);
+
+    // Sync to API
+    try {
+      await fetch(`/api/banners/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.warn("Could not sync banner deletion to API:", e);
+    }
   }
 
   // Init Admin & Defaults

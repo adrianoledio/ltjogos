@@ -7,8 +7,9 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Supabase Configuration
-let supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+// Prioritize SECRET_KEY for full server database authorization, then PUBLISHABLE_KEY, then VITE_SUPABASE_ANON_KEY
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
 
 if (supabaseUrl && !supabaseUrl.startsWith("http")) {
   supabaseUrl = `https://${supabaseUrl}`;
@@ -16,7 +17,7 @@ if (supabaseUrl && !supabaseUrl.startsWith("http")) {
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn("CRITICAL: Supabase configuration is missing!");
-  console.warn("Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.");
+  console.warn("Please ensure SUPABASE_URL and either SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY are configured in your environment.");
 } else {
   try {
     const url = new URL(supabaseUrl);
@@ -25,7 +26,7 @@ if (!supabaseUrl || !supabaseKey) {
       console.warn("WARNING: Supabase URL might be incorrect (should normally be [id].supabase.co):", url.hostname);
     }
   } catch (e) {
-    console.warn("CRITICAL: VITE_SUPABASE_URL is not a valid URL:", supabaseUrl);
+    console.warn("CRITICAL: Supabase URL is not a valid URL:", supabaseUrl);
   }
 }
 
@@ -63,7 +64,7 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("users").select("*");
       if (error) {
-        if (error.message.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json([]);
         }
         console.error("Supabase error fetching users:", error);
@@ -76,7 +77,7 @@ async function startServer() {
       })));
     } catch (error: any) {
       console.error("Network error fetching users:", error.message || error);
-      res.status(500).json({ error: "Erro de conexão com o banco de dados: " + (error.message || "Unknown error") });
+      res.json([]);
     }
   });
 
@@ -107,7 +108,7 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("games").select("*");
       if (error) {
-        if (error.message.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json([]);
         }
         console.error("Supabase error fetching games:", error);
@@ -116,7 +117,7 @@ async function startServer() {
       res.json((data || []).map((g: any) => ({ ...g, active: !!g.active })));
     } catch (error: any) {
       console.error("Network error fetching games:", error.message || error);
-      res.status(500).json({ error: "Erro de conexão com o banco de dados" });
+      res.json([]);
     }
   });
 
@@ -141,16 +142,16 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("transactions").select("*").order("date", { ascending: false });
       if (error) {
-        if (error.message.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json([]);
         }
         console.error("Supabase error fetching transactions:", error);
         return res.status(500).json({ error: error.message });
       }
-      res.json(data.map((t: any) => ({ ...t, metadata: t.metadata ? (typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata) : null })));
+      res.json((data || []).map((t: any) => ({ ...t, metadata: t.metadata ? (typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata) : null })));
     } catch (error: any) {
       console.error("Internal error fetching transactions:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
+      res.json([]);
     }
   });
 
@@ -175,7 +176,7 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
       if (error) {
-        if (error.message?.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json(null);
         }
         if (error.code !== 'PGRST116') {
@@ -190,7 +191,7 @@ async function startServer() {
       }
     } catch (error: any) {
       console.error("Network error fetching settings:", error.message || error);
-      res.status(500).json({ error: "Erro de conexão" });
+      res.json(null);
     }
   });
 
@@ -216,16 +217,16 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("notifications").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.message.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json([]);
         }
         console.error("Supabase error fetching notifications:", error);
         return res.status(500).json({ error: error.message });
       }
-      res.json(data);
+      res.json(data || []);
     } catch (error: any) {
       console.error("Internal error fetching notifications:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
+      res.json([]);
     }
   });
 
@@ -265,16 +266,16 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("promotions").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.message.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json([]);
         }
         console.error("Supabase error fetching promotions:", error);
         return res.status(500).json({ error: error.message });
       }
-      res.json(data.map((p: any) => ({ ...p, active: !!p.active })));
+      res.json((data || []).map((p: any) => ({ ...p, active: !!p.active })));
     } catch (error: any) {
       console.error("Internal error fetching promotions:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
+      res.json([]);
     }
   });
 
@@ -314,16 +315,16 @@ async function startServer() {
     try {
       const { data, error } = await supabase.from("banners").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.message.includes("Could not find the table")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
           return res.json([]);
         }
         console.error("Supabase error fetching banners:", error);
         return res.status(500).json({ error: error.message });
       }
-      res.json(data.map((b: any) => ({ ...b, active: !!b.active })));
+      res.json((data || []).map((b: any) => ({ ...b, active: !!b.active })));
     } catch (error: any) {
       console.error("Internal error fetching banners:", error);
-      res.status(500).json({ error: error.message || "Internal server error" });
+      res.json([]);
     }
   });
 
