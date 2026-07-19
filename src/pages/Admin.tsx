@@ -619,6 +619,15 @@ export function Admin() {
                           const newGames = games.map(g => g.id === game.id ? { ...g, thumbnail: e.target.value } : g);
                           setGames(newGames);
                         }}
+                        onBlur={async (e) => {
+                          const updatedGame = { ...game, thumbnail: e.target.value };
+                          try {
+                            await db.updateGame(updatedGame);
+                            toast.success(`Thumbnail de ${game.name} salva no banco em tempo real!`);
+                          } catch (error) {
+                            toast.error(`Erro ao salvar thumbnail de ${game.name} no banco`);
+                          }
+                        }}
                         className={`flex-1 rounded-lg px-1.5 py-1 text-[9px] font-bold transition-all outline-none border ${
                           theme === 'dark' 
                             ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' 
@@ -633,9 +642,18 @@ export function Admin() {
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
-                              const newGames = games.map(g => g.id === game.id ? { ...g, thumbnail: reader.result as string } : g);
+                            reader.onloadend = async () => {
+                              const base64Str = reader.result as string;
+                              const updatedGame = { ...game, thumbnail: base64Str };
+                              const newGames = games.map(g => g.id === game.id ? updatedGame : g);
                               setGames(newGames);
+                              
+                              try {
+                                await db.updateGame(updatedGame);
+                                toast.success(`Thumbnail de ${game.name} salva no banco em tempo real!`);
+                              } catch (error) {
+                                toast.error(`Erro ao salvar thumbnail de ${game.name} no banco`);
+                              }
                             };
                             reader.readAsDataURL(file);
                           }

@@ -1,4 +1,4 @@
-import calaveraInkCover from '../assets/images/calavera_ink_cover_1784495373476.jpg';
+const calaveraInkCover = '/images/calavera_ink_cover_1784495373476.jpg';
 
 export type Role = 'user' | 'admin' | 'partner';
 
@@ -172,8 +172,8 @@ const DEFAULT_GAMES: GameConfig[] = [
     category: 'slots',
   },
   {
-    id: 'roleta-pix',
-    name: 'Roleta da Sorte',
+    id: 'rouletta-ink',
+    name: 'Rouletta Ink',
     active: true,
     minBet: 1,
     maxBet: 100,

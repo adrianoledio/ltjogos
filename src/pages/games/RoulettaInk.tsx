@@ -29,7 +29,7 @@ const WHEEL_SLICES: WheelSlice[] = [
   { id: 7, label: 'R$ 500', value: 500, color: 'from-[#e11d48] to-[#be123c]', textColor: '#ffffff' },
 ];
 
-export function RoletaPix() {
+export function RoulettaInk() {
   const navigate = useNavigate();
   const { user, updateBalance } = useAuth();
   const { playSfx, playGameMusic, stopGameMusic, isMuted, toggleMute } = useAudio();
@@ -130,7 +130,7 @@ export function RoletaPix() {
     setShowBigWin(false);
 
     // Deduct bet from balance
-    await updateBalance(-bet, 'bet', 'roleta-pix', { bet });
+    await updateBalance(-bet, 'bet', 'rouletta-ink', { bet });
     playSpinnerSound();
 
     // Fetch authorized prize target from system settings
@@ -179,7 +179,7 @@ export function RoletaPix() {
 
       if (actualPayout > 0) {
         if (!isMuted) playSfx('win');
-        await updateBalance(actualPayout, 'win', 'roleta-pix', { winAmount: actualPayout });
+        await updateBalance(actualPayout, 'win', 'rouletta-ink', { winAmount: actualPayout });
         await PrizeService.commitPrize(user.id, actualPayout);
 
         // Update winner lists
@@ -225,7 +225,7 @@ export function RoletaPix() {
           </button>
           <div className="flex flex-col">
             <h1 className="text-[13px] tracking-[0.12em] text-cyan-400 font-black uppercase" id="game-title">
-              ROLETA DA SORTE
+              ROULETTA INK
             </h1>
             <span className="text-[8px] text-white/40 font-mono tracking-wider">PREMIUM WHEEL</span>
           </div>
@@ -498,7 +498,7 @@ export function RoletaPix() {
             >
               <div className="flex items-center justify-between border-b border-cyan-500/10 pb-3 mb-4">
                 <span className="font-black text-cyan-400 uppercase tracking-widest text-[11px]">
-                  COMO JOGAR ROLETA DA SORTE
+                  COMO JOGAR ROULETTA INK
                 </span>
                 <button onClick={() => setShowInfoModal(false)} className="text-white/40 hover:text-white" id="close-info-modal">
                   <X size={20} />
@@ -509,7 +509,7 @@ export function RoletaPix() {
                 <div>
                   <h3 className="text-amber-400 font-black mb-1 uppercase tracking-wider text-[10px]">Mecânica de Jogo</h3>
                   <p>
-                    A Roleta da Sorte é um jogo de sorte e multiplicadores de alta fidelidade. Defina seu valor de giro e gire a roda da sorte.
+                    A Rouletta Ink é um jogo de sorte e multiplicadores de alta fidelidade. Defina seu valor de giro e gire a roda da sorte.
                   </p>
                 </div>
 

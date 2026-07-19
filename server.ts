@@ -98,7 +98,11 @@ async function testAndSeedSupabase() {
       }
 
       // 2. Seed games
-      console.log("Seeding and updating DEFAULT_GAMES to Supabase...");
+      console.log("Checking games in Supabase...");
+      const { data: existingGames, error: gamesFetchError } = await supabase.from("games").select("id");
+      const existingIds = new Set((existingGames || []).map((g: any) => g.id));
+
+      console.log("Seeding missing DEFAULT_GAMES to Supabase...");
       const DEFAULT_GAMES = [
         {
           id: 'mystic-ink',
@@ -133,7 +137,7 @@ async function testAndSeedSupabase() {
           minBet: 0.4,
           maxBet: 100,
           rtp: 98,
-          thumbnail: '/src/assets/images/calavera_ink_cover_1784495373476.jpg',
+          thumbnail: '/images/calavera_ink_cover_1784495373476.jpg',
           bgPage: '',
           bgContainer: '',
           bgMusic: '',
@@ -166,8 +170,8 @@ async function testAndSeedSupabase() {
           category: 'slots',
         },
         {
-          id: 'roleta-pix',
-          name: 'Roleta da Sorte',
+          id: 'rouletta-ink',
+          name: 'Rouletta Ink',
           active: true,
           minBet: 1,
           maxBet: 100,
@@ -181,7 +185,10 @@ async function testAndSeedSupabase() {
       ];
       
       for (const g of DEFAULT_GAMES) {
-        await supabase.from("games").upsert(g);
+        if (!existingIds.has(g.id)) {
+          console.log(`Seeding game ${g.id} to Supabase...`);
+          await supabase.from("games").upsert(g);
+        }
       }
 
       // 3. Seed default admin users if they do not exist

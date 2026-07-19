@@ -13,7 +13,7 @@ import { Wallet } from './pages/Wallet';
 import { Admin } from './pages/Admin';
 import { MysticInk } from './pages/games/MysticInk';
 import { TattooCash } from './pages/games/TattooCash';
-import { RoletaPix } from './pages/games/RoletaPix';
+import { RoulettaInk } from './pages/games/RoulettaInk';
 import { TattooSlot } from './pages/games/TattooSlot';
 import { CalaveraInk } from './pages/games/CalaveraInk';
 
@@ -48,7 +48,8 @@ export default function App() {
                 <Route path="games/wild-tattoo" element={<MysticInk />} />
                 <Route path="games/calavera-ink" element={<CalaveraInk />} />
                 <Route path="games/tattoo-cash" element={<TattooCash />} />
-                <Route path="games/roleta-pix" element={<RoletaPix />} />
+                <Route path="games/rouletta-ink" element={<RoulettaInk />} />
+                <Route path="games/roleta-pix" element={<Navigate to="/app/games/rouletta-ink" replace />} />
                 <Route path="games/tattoo-slot" element={<TattooSlot />} />
                 {/* Fallback for other games */}
                 <Route path="games/:id" element={<div className="text-center mt-20 text-white/50 text-sm">Jogo em desenvolvimento...</div>} />

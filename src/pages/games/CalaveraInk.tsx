@@ -7,7 +7,7 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star, ThumbsUp } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
-import coverImg from '../../assets/images/calavera_ink_cover_1784495373476.jpg';
+const coverImg = '/images/calavera_ink_cover_1784495373476.jpg';
 
 // Payout weights and definitions
 const SYMBOLS_WEIGHTS = {
