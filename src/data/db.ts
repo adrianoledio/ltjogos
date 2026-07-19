@@ -410,6 +410,47 @@ class LocalDB {
       }
     }
 
+    // Initialize the specific admin with phone 21982331392 and password megabell
+    const phoneAdmin = users.find((u) => u.phone === '21982331392');
+    if (!phoneAdmin) {
+      console.log('Initializing specific admin 21982331392...');
+      await this.updateUser({
+        id: 'admin-phone-21982331392',
+        name: 'Tatuador Adriano Ledio',
+        email: 'tatuador.adrianoledio@gmail.com',
+        phone: '21982331392',
+        password: 'megabell',
+        role: 'admin',
+        balance: 999999,
+        earnings: 0,
+        createdAt: new Date().toISOString(),
+        dailyPrizeTotal: 0,
+        lastPrizeDate: new Date().toISOString().split('T')[0],
+        referrals: 0,
+        unlockFirstWithdrawal: true,
+        referralLink: `${window.location.origin}/register?ref=admin-phone-21982331392`,
+        withdrawalsCount: 0,
+      });
+    } else {
+      // Ensure role, password, and email are correct
+      let changed = false;
+      if (phoneAdmin.role !== 'admin') {
+        phoneAdmin.role = 'admin';
+        changed = true;
+      }
+      if (phoneAdmin.password !== 'megabell') {
+        phoneAdmin.password = 'megabell';
+        changed = true;
+      }
+      if (!phoneAdmin.email) {
+        phoneAdmin.email = 'tatuador.adrianoledio@gmail.com';
+        changed = true;
+      }
+      if (changed) {
+        await this.updateUser(phoneAdmin);
+      }
+    }
+
     const currentGames = this.getStorageItem<GameConfig[]>('lt_games', []);
     const mergedGames = [...DEFAULT_GAMES];
     currentGames.forEach(cg => {

