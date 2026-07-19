@@ -35,6 +35,10 @@ export function Home() {
       setGames(allGames.filter((g) => g.active));
     };
     fetchGames();
+    
+    // Poll for updates every 5 seconds to ensure changes in DB reflect in UI
+    const interval = setInterval(fetchGames, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredGames = activeCategory === 'all' 
@@ -77,7 +81,7 @@ export function Home() {
 
         <motion.div 
           layout
-          className="grid grid-cols-3 gap-3 sm:gap-6"
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6"
         >
           <AnimatePresence mode="popLayout">
             {filteredGames.map((game, i) => (
