@@ -15,6 +15,7 @@ import { MysticInk } from './pages/games/MysticInk';
 import { TattooCash } from './pages/games/TattooCash';
 import { RoletaPix } from './pages/games/RoletaPix';
 import { TattooSlot } from './pages/games/TattooSlot';
+import { CalaveraInk } from './pages/games/CalaveraInk';
 
 import { Events } from './pages/Events';
 import { Referral } from './pages/Referral';
@@ -45,6 +46,7 @@ export default function App() {
                 <Route path="games" element={<Home />} />
                 <Route path="games/mystic-ink" element={<MysticInk />} />
                 <Route path="games/wild-tattoo" element={<MysticInk />} />
+                <Route path="games/calavera-ink" element={<CalaveraInk />} />
                 <Route path="games/tattoo-cash" element={<TattooCash />} />
                 <Route path="games/roleta-pix" element={<RoletaPix />} />
                 <Route path="games/tattoo-slot" element={<TattooSlot />} />

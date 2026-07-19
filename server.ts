@@ -98,80 +98,90 @@ async function testAndSeedSupabase() {
       }
 
       // 2. Seed games
-      const { data: gamesData, error: gamesError } = await supabase.from("games").select("id").limit(1);
-      if (!gamesError && (!gamesData || gamesData.length === 0)) {
-        console.log("Seeding DEFAULT_GAMES to Supabase...");
-        const DEFAULT_GAMES = [
-          {
-            id: 'mystic-ink',
-            name: 'Mystic Ink',
-            active: true,
-            minBet: 1,
-            maxBet: 100,
-            rtp: 95,
-            thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
-            bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
-            bgContainer: 'rgba(0,0,0,0.8)',
-            bgMusic: '',
-            category: 'slots',
-          },
-          {
-            id: 'wild-tattoo',
-            name: 'Wild Tattoo',
-            active: true,
-            minBet: 1,
-            maxBet: 100,
-            rtp: 96,
-            thumbnail: 'https://picsum.photos/seed/tattoo/400/300',
-            bgPage: '',
-            bgContainer: '',
-            bgMusic: '',
-            category: 'slots',
-          },
-          {
-            id: 'tattoo-cash',
-            name: 'Tattoo Cash',
-            active: true,
-            minBet: 0.5,
-            maxBet: 100,
-            rtp: 97,
-            thumbnail: 'https://images.unsplash.com/photo-1590247813693-5541d1c609fd?q=80&w=800&auto=format&fit=crop',
-            bgPage: '',
-            bgContainer: '',
-            bgMusic: '',
-            category: 'slots',
-          },
-          {
-            id: 'tattoo-slot',
-            name: 'Tattoo Slot',
-            active: true,
-            minBet: 0.5,
-            maxBet: 100,
-            rtp: 98,
-            thumbnail: 'https://images.unsplash.com/photo-1598252571565-794637d7a2ee?q=80&w=800&auto=format&fit=crop',
-            bgPage: '',
-            bgContainer: '',
-            bgMusic: '',
-            category: 'slots',
-          },
-          {
-            id: 'roleta-pix',
-            name: 'Roleta da Sorte',
-            active: true,
-            minBet: 1,
-            maxBet: 100,
-            rtp: 97,
-            thumbnail: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=800&auto=format&fit=crop',
-            bgPage: '',
-            bgContainer: '',
-            bgMusic: '',
-            category: 'roletas',
-          },
-        ];
-        
-        for (const g of DEFAULT_GAMES) {
-          await supabase.from("games").upsert(g);
-        }
+      console.log("Seeding and updating DEFAULT_GAMES to Supabase...");
+      const DEFAULT_GAMES = [
+        {
+          id: 'mystic-ink',
+          name: 'Mystic Ink',
+          active: true,
+          minBet: 1,
+          maxBet: 100,
+          rtp: 95,
+          thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
+          bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
+          bgContainer: 'rgba(0,0,0,0.8)',
+          bgMusic: '',
+          category: 'slots',
+        },
+        {
+          id: 'wild-tattoo',
+          name: 'Wild Tattoo',
+          active: true,
+          minBet: 0.4,
+          maxBet: 100,
+          rtp: 96,
+          thumbnail: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=800&auto=format&fit=crop',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'slots',
+        },
+        {
+          id: 'calavera-ink',
+          name: 'Calavera Ink',
+          active: true,
+          minBet: 0.4,
+          maxBet: 100,
+          rtp: 98,
+          thumbnail: '/src/assets/images/calavera_ink_cover_1784495373476.jpg',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'slots',
+        },
+        {
+          id: 'tattoo-cash',
+          name: 'Tattoo Cash',
+          active: true,
+          minBet: 0.5,
+          maxBet: 100,
+          rtp: 97,
+          thumbnail: 'https://images.unsplash.com/photo-1590247813693-5541d1c609fd?q=80&w=800&auto=format&fit=crop',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'slots',
+        },
+        {
+          id: 'tattoo-slot',
+          name: 'Tattoo Slot',
+          active: true,
+          minBet: 0.5,
+          maxBet: 100,
+          rtp: 98,
+          thumbnail: 'https://images.unsplash.com/photo-1598252571565-794637d7a2ee?q=80&w=800&auto=format&fit=crop',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'slots',
+        },
+        {
+          id: 'roleta-pix',
+          name: 'Roleta da Sorte',
+          active: true,
+          minBet: 1,
+          maxBet: 100,
+          rtp: 97,
+          thumbnail: 'https://images.unsplash.com/photo-1606167668584-78701c57f13d?q=80&w=800&auto=format&fit=crop',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'roletas',
+        },
+      ];
+      
+      for (const g of DEFAULT_GAMES) {
+        await supabase.from("games").upsert(g);
       }
 
       // 3. Seed default admin users if they do not exist

@@ -1,3 +1,5 @@
+import calaveraInkCover from '../assets/images/calavera_ink_cover_1784495373476.jpg';
+
 export type Role = 'user' | 'admin' | 'partner';
 
 export interface User {
@@ -121,10 +123,23 @@ const DEFAULT_GAMES: GameConfig[] = [
     id: 'wild-tattoo',
     name: 'Wild Tattoo',
     active: true,
-    minBet: 1,
+    minBet: 0.4,
     maxBet: 100,
     rtp: 96,
-    thumbnail: 'https://picsum.photos/seed/tattoo/400/300',
+    thumbnail: 'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=800&auto=format&fit=crop',
+    bgPage: '',
+    bgContainer: '',
+    bgMusic: '',
+    category: 'slots',
+  },
+  {
+    id: 'calavera-ink',
+    name: 'Calavera Ink',
+    active: true,
+    minBet: 0.4,
+    maxBet: 100,
+    rtp: 98,
+    thumbnail: calaveraInkCover,
     bgPage: '',
     bgContainer: '',
     bgMusic: '',
