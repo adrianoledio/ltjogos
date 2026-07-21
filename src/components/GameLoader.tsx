@@ -46,7 +46,17 @@ export const GameLoader: React.FC<GameLoaderProps> = ({ onComplete, backgroundIm
       
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center w-full max-w-md px-6">
-        <h1 className="text-4xl md:text-6xl font-black text-white mb-12 tracking-wider text-center drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
+        {/* Spinning Icon */}
+        <div className="mb-6 relative flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full bg-brand-primary/20 blur-xl animate-pulse" />
+          <img
+            src="https://i.postimg.cc/qMC9Q13X/icone.png"
+            alt="Carregando"
+            className="w-16 h-16 object-contain animate-[spin_5s_linear_infinite] drop-shadow-[0_0_12px_rgba(255,204,0,0.4)] relative z-10"
+          />
+        </div>
+
+        <h1 className="text-4xl md:text-6xl font-black text-white mb-8 tracking-wider text-center drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">
           {gameName}
         </h1>
 

@@ -35,6 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             found.referralLink = `${window.location.origin}/register?ref=${found.id}`;
             updated = true;
           }
+          // Ensure level and betVolume exist
+          if (found.level === undefined) {
+            found.level = 1;
+            updated = true;
+          }
+          if (found.betVolume === undefined) {
+            found.betVolume = 0;
+            updated = true;
+          }
           if (updated) {
             await db.updateUser(found);
           }
@@ -129,6 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       withdrawalsCount: 0,
       referredBy,
       referralCounted: false,
+      level: 1,
+      betVolume: 0,
     };
 
     try {
@@ -156,6 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updatedUser.balance += amount;
     } else if (type === 'bet') {
       updatedUser.balance += amount; // amount is negative
+      updatedUser.betVolume += Math.abs(amount);
+      
+      // Basic Leveling Logic
+      const newLevel = updatedUser.betVolume > 10000 ? 5 : updatedUser.betVolume > 5000 ? 4 : updatedUser.betVolume > 2500 ? 3 : updatedUser.betVolume > 1000 ? 2 : 1;
+      if (newLevel !== updatedUser.level) {
+        updatedUser.level = newLevel;
+      }
     } else if (type === 'win') {
       updatedUser.balance += amount; // amount is positive
     } else if (type === 'withdraw') {

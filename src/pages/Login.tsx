@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogIn } from 'lucide-react';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export function Login() {
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
@@ -10,7 +11,11 @@ export function Login() {
   const { login, user, loading } = useAuth();
   const navigate = useNavigate();
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Carregando...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <LoadingSpinner size="lg" text="CARREGANDO..." />
+    </div>
+  );
   if (user) return <Navigate to="/app" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {

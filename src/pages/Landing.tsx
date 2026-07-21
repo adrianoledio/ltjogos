@@ -3,11 +3,16 @@ import { Link, Navigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Skull, ArrowRight, ShieldAlert, Gift, Star, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export function Landing() {
   const { user, loading } = useAuth();
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Carregando...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <LoadingSpinner size="lg" text="CARREGANDO..." />
+    </div>
+  );
   if (user) return <Navigate to="/app" replace />;
 
   return (
@@ -15,22 +20,16 @@ export function Landing() {
       <div className="w-full max-w-md bg-[#05020a] min-h-screen relative shadow-2xl flex flex-col overflow-x-hidden">
         
         {/* Hero Section */}
-        <div className="relative pt-16 pb-10 px-6 flex flex-col items-center text-center overflow-hidden">
+        <div className="relative pt-12 pb-6 px-6 flex flex-col items-center text-center overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-surface-dark via-surface-dark to-black z-0" />
-          <img
-            src="https://picsum.photos/seed/tattoo-neon/800/1200"
-            alt="Tattoo Neon"
-            className="absolute inset-0 w-full h-full object-cover opacity-10 mix-blend-overlay scale-110 animate-pulse-slow"
-            referrerPolicy="no-referrer"
-          />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent z-10" />
           
-          <div className="relative z-20 flex flex-col items-center w-full mt-6">
+          <div className="relative z-20 flex flex-col items-center w-full mt-4">
             <motion.div
               initial={{ scale: 0, rotate: -20 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
-              className="w-20 h-20 bg-gradient-to-tr from-brand-primary to-brand-secondary rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(255,0,127,0.4)] rotate-3"
+              className="w-20 h-20 bg-gradient-to-tr from-brand-primary to-brand-secondary rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_40px_rgba(255,0,127,0.4)] rotate-3"
             >
               <Skull size={40} className="text-white drop-shadow-lg" />
             </motion.div>
@@ -38,35 +37,35 @@ export function Landing() {
             <motion.h1 
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-4xl font-black tracking-tighter leading-[1] mb-4 text-white drop-shadow-2xl"
+              className="text-4xl font-black tracking-tighter leading-[1] mb-3 text-white drop-shadow-2xl"
             >
               SUA TATUAGEM <br />
-              <span className="text-gradient">ESTÁ EM JOGO</span>
+              <span className="text-brand-primary">ESTÁ EM JOGO</span>
             </motion.h1>
             
             <motion.p 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-white/50 text-xs mb-8 max-w-[280px] font-medium leading-relaxed uppercase tracking-widest"
+              className="text-white/70 text-xs mb-6 max-w-[280px] font-bold leading-relaxed uppercase tracking-widest"
             >
-              A única Plataforma de Jogos onde seus ganhos viram tatuagens reais. Multiplique seu saldo e feche o braço!
+              A única Plataforma onde seus ganhos viram tatuagens reais. Jogue, Ganhe e feche o braço com os melhores!
             </motion.p>
             
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="w-full space-y-4"
+              className="w-full space-y-3"
             >
               <Link
                 to="/register"
-                className="btn-primary w-full py-5 text-lg uppercase tracking-[0.2em] shadow-2xl shadow-brand-primary/20"
+                className="block w-full bg-brand-primary text-surface-dark font-display font-black py-4 rounded-2xl text-lg uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(255,204,0,0.3)] hover:shadow-[0_0_40px_rgba(255,204,0,0.5)] transition-all"
               >
-                COMEÇAR AGORA <ArrowRight size={20} className="ml-2 inline" />
+                CADASTRAR E GANHAR <ArrowRight size={20} className="ml-2 inline" />
               </Link>
-              <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">
-                Já tem conta? <Link to="/login" className="text-brand-primary hover:underline">Entrar</Link>
+              <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+                Já tem conta? <Link to="/login" className="text-brand-primary hover:underline font-bold">Entrar</Link>
               </p>
             </motion.div>
           </div>
@@ -75,20 +74,36 @@ export function Landing() {
         {/* Info Section */}
         <div className="flex-1 px-5 relative z-20 flex flex-col gap-6 pb-16">
           
-          {/* Deposit Bonus Trigger */}
-          <div className="glass-card p-6 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-brand-secondary/10 blur-3xl rounded-full -mr-16 -mt-16 transition-all group-hover:bg-brand-secondary/20" />
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-brand-secondary/10 flex items-center justify-center text-brand-secondary">
-                <Gift size={24} />
+          {/* Deposit Bonus Trigger - Enhanced */}
+          <div className="bg-gradient-to-br from-purple-900/40 to-black/40 border border-brand-primary/30 rounded-2xl p-5 flex flex-col gap-3 shadow-[0_4px_25px_rgba(255,204,0,0.1)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-brand-primary/20 flex items-center justify-center animate-pulse">
+                <Gift className="text-brand-primary" size={20} />
               </div>
-              <h3 className="text-sm font-black text-white uppercase tracking-widest leading-tight">DOBRAMOS SEU <br/> 1º DEPÓSITO</h3>
+              <h3 className="text-sm font-black text-white uppercase tracking-widest">Bônus de +50% a +75%</h3>
             </div>
-            <p className="text-xs text-white/60 leading-relaxed mb-4 font-medium">
-              Deposite <strong className="text-white">R$ 50</strong> e jogue com <strong className="text-white">R$ 100</strong>. Suas chances de ganhar aquela tatuagem dos sonhos acabaram de dobrar!
+            <p className="text-xs text-white/70 leading-relaxed font-medium">
+              Deposite a partir de <strong className="text-white">R$ 20</strong> e receba bônus instantâneo! Depósitos acima de <strong className="text-white">R$ 200</strong> ganham <strong className="text-brand-primary font-black">+75%</strong> extras para jogar!
             </p>
-            <div className="flex items-center gap-2 text-[9px] font-black text-emerald-400 bg-emerald-400/10 w-max px-4 py-2 rounded-lg uppercase tracking-widest">
-              <CheckCircle2 size={14} /> Oferta liberada no cadastro
+            <div className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 w-max px-3 py-1 rounded-lg uppercase tracking-widest">
+              ATIVO AGORA
+            </div>
+          </div>
+
+          {/* How it Works - New Section */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-black text-white/50 uppercase tracking-[0.2em] text-center">Como funciona?</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { icon: Star, title: "CADASTRE" },
+                { icon: TrendingUp, title: "DEPÓSITE" },
+                { icon: CheckCircle2, title: "TATUE" }
+              ].map((item, i) => (
+                <div key={i} className="bg-white/[0.02] border border-white/5 rounded-xl p-3 flex flex-col items-center gap-2">
+                  <item.icon className="text-brand-primary" size={20} />
+                  <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">{item.title}</span>
+                </div>
+              ))}
             </div>
           </div>
 

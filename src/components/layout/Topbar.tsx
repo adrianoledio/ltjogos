@@ -72,35 +72,6 @@ export function Topbar() {
                 </div>
               </Link>
               
-              <div className="relative group">
-                <button className="w-10 h-10 rounded-xl bg-surface-card border border-border-rgba flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-card/85 transition-all">
-                  <UserIcon size={18} />
-                </button>
-                
-                {/* Dropdown */}
-                <div className="absolute right-0 top-full mt-2 w-56 glass-card p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform origin-top-right z-50 scale-95 group-hover:scale-100">
-                  <div className="p-4 border-b border-border-rgba bg-gradient-to-br from-brand-primary/5 to-transparent rounded-t-2xl">
-                    <p className="font-bold text-sm text-text-main truncate">{user.name}</p>
-                    <p className="text-[10px] text-text-muted truncate font-medium">{user.phone || user.email}</p>
-                  </div>
-                  <div className="p-1 space-y-1">
-                    {user.role === 'admin' && (
-                      <Link to="/app/admin" className="flex items-center gap-3 px-3 py-2.5 text-xs font-semibold text-text-muted hover:text-text-main hover:bg-white/5 rounded-xl transition-all">
-                        <div className="w-2 h-2 rounded-full bg-brand-secondary animate-pulse" />
-                        Painel Admin
-                      </Link>
-                    )}
-                    <button className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-semibold text-text-muted hover:text-text-main hover:bg-white/5 rounded-xl transition-all">
-                      <Bell size={14} />
-                      Notificações
-                    </button>
-                    <div className="h-px bg-border-rgba mx-2 my-1" />
-                    <button onClick={logout} className="w-full text-left px-3 py-2.5 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all">
-                      Sair da Conta
-                    </button>
-                  </div>
-                </div>
-              </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
@@ -162,6 +133,7 @@ export function Topbar() {
                       <div className="overflow-hidden flex-1">
                         <h4 className="font-bold text-sm text-text-main truncate leading-none mb-1">{user.name}</h4>
                         <span className="text-[10px] text-text-muted truncate font-mono">ID: #{user.id?.substring(0, 6) || 'guest'}</span>
+                        <span className="ml-2 px-1.5 py-0.5 rounded-md bg-surface-dark border border-border-rgba text-[8px] font-bold text-brand-primary">NÍVEL {user.level}</span>
                       </div>
                     </div>
 
@@ -324,7 +296,7 @@ export function Topbar() {
                   
                   {/* Whatsapp link */}
                   <a 
-                    href="https://wa.me/550000000000" 
+                    href="https://wa.me/5521982331392" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="flex items-center justify-between px-3 py-2.5 rounded-xl text-text-muted hover:text-text-main hover:bg-white/5 transition-all text-xs font-semibold"
@@ -333,7 +305,26 @@ export function Topbar() {
                       <div className="w-6 h-6 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400">
                         <MessageSquare size={14} />
                       </div>
-                      <span>Suporte WhatsApp</span>
+                      <div className="flex flex-col">
+                        <span>Suporte WhatsApp</span>
+                        <span className="text-[10px] text-text-muted/50">+55 21 98233-1392</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={12} className="text-text-muted/30" />
+                  </a>
+
+                  {/* Canal link */}
+                  <a 
+                    href="https://whatsapp.com/channel/0029Vb8bwdNChq6OZUleSz2T" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between px-3 py-2.5 rounded-xl text-text-muted hover:text-text-main hover:bg-white/5 transition-all text-xs font-semibold"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400">
+                        <MessageSquare size={14} />
+                      </div>
+                      <span>Nosso Canal</span>
                     </div>
                     <ChevronRight size={12} className="text-text-muted/30" />
                   </a>

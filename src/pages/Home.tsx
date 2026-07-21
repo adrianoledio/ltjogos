@@ -8,6 +8,8 @@ import { db, GameConfig } from '../data/db';
 import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp, Search, X } from 'lucide-react';
 import { HeroCarousel } from '../components/home/HeroCarousel';
 import { CategoryFilter } from '../components/home/CategoryFilter';
+import { LoadingSpinner } from '../components/LoadingSpinner';
+import { RecentWinsFeed } from '../components/home/RecentWinsFeed';
 import { requestNotificationPermission, showNotification } from '../lib/notifications';
 
 const steps: Step[] = [
@@ -42,6 +44,7 @@ const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean,
 
 export function Home() {
   const [games, setGames] = useState<GameConfig[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
   const [runTour, setRunTour] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +62,7 @@ export function Home() {
       }
       prevGamesCount.current = activeGames.length;
       setGames(activeGames);
+      setIsLoading(false);
     };
     fetchGames();
     
@@ -125,9 +129,7 @@ export function Home() {
       
       {/* Hero Section */}
       <section className="shrink-0 p-4 pb-0">
-        <div className="glass-card overflow-hidden h-[160px] sm:h-auto">
-          <HeroCarousel />
-        </div>
+        <HeroCarousel />
       </section>
 
       {/* Categories */}
@@ -174,68 +176,43 @@ export function Home() {
             </span>
           </h2>
           <span className="text-[10px] font-bold text-white/40 bg-white/5 px-2 py-1 rounded-lg border border-white/5 uppercase tracking-widest">
-            {filteredGames.length} Jogos
+            {isLoading ? '...' : `${filteredGames.length} Jogos`}
           </span>
         </div>
 
-        <motion.div 
-          layout
-          id="games-section"
-          className="grid grid-cols-3 gap-3 sm:gap-6"
-        >
-          <AnimatePresence mode="popLayout">
-            {filteredGames.map((game, i) => (
-              <GameCard 
-                key={game.id} 
-                game={game} 
-                badge={i < 3 && activeCategory === 'all' ? 'NEW' : undefined}
-                compact={true}
-              />
-            ))}
-          </AnimatePresence>
-        </motion.div>
+        {isLoading ? (
+          <div className="py-12 flex items-center justify-center">
+            <LoadingSpinner size="md" text="CARREGANDO..." />
+          </div>
+        ) : (
+          <motion.div 
+            layout
+            id="games-section"
+            className="grid grid-cols-3 gap-3 sm:gap-6"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredGames.map((game, i) => (
+                <GameCard 
+                  key={game.id} 
+                  game={game} 
+                  badge={i < 3 && activeCategory === 'all' ? 'NEW' : undefined}
+                  compact={true}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
-        {filteredGames.length === 0 && (
+        {!isLoading && filteredGames.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 text-white/30">
             <Gamepad2 size={32} className="mb-2 opacity-50" />
             <p className="text-xs font-medium">Nenhum jogo encontrado.</p>
           </div>
         )}
 
-        {/* Live Winners Ticker - Inside scrollable area but at the end */}
-        <div className="mt-8 pb-4">
-          <section className="bg-gradient-to-r from-[#151020] to-[#0a0510] rounded-xl p-0.5 border border-white/10 shadow-2xl overflow-hidden relative group">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-black/20">
-              <h2 className="text-[10px] font-bold flex items-center gap-2 text-white/90 uppercase tracking-wider">
-                <Trophy className="text-[#FFCC00]" size={12} />
-                Ganhadores
-              </h2>
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[8px] font-bold text-green-500">AO VIVO</span>
-              </div>
-            </div>
-
-            <div className="relative h-[120px] overflow-hidden">
-              <motion.div
-                animate={{ y: [0, -500] }}
-                transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
-                className="space-y-1 p-1"
-              >
-                {[...Array(10)].map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-1.5 rounded-lg bg-white/5 border border-transparent">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[8px] text-white/70">
-                        {['JP', 'AN', 'MR', 'LC', 'BR'][i % 5]}
-                      </div>
-                      <span className="text-[10px] font-bold text-white truncate w-16">User_{Math.floor(Math.random() * 999)}</span>
-                    </div>
-                    <p className="font-mono font-bold text-emerald-400 text-[10px]">+ R$ {(Math.random() * 500).toFixed(2)}</p>
-                  </div>
-                ))}
-              </motion.div>
-            </div>
-          </section>
+        {/* Live Winners Feed */}
+        <div className="mt-8 pb-4 px-4">
+          <RecentWinsFeed />
         </div>
       </section>
     </div>

@@ -22,6 +22,8 @@ import {
   MessageCircle
 } from 'lucide-react';
 
+import { LoadingSpinner } from '../components/LoadingSpinner';
+
 export function Wallet() {
   const { user, updateBalance, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'history'>('deposit');
@@ -113,7 +115,11 @@ export function Wallet() {
     };
   }, [showQr, user, activeTxId, refreshUser]);
 
-  if (!user || loading) return <div className="text-center mt-20 text-sm">Carregando...</div>;
+  if (!user || loading) return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <LoadingSpinner size="lg" text="CARREGANDO..." />
+    </div>
+  );
 
   const calculateBonus = (valStr: string) => {
     const val = parseFloat(valStr);
@@ -558,13 +564,30 @@ export function Wallet() {
                     <p className="text-[9px] text-white/55 leading-snug mt-0.5">Todos os seus lucros acumulados se transformam em cupons reais de tatuagem.</p>
                   </div>
                 </div>
-                <div className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                <a 
+                  href="https://wa.me/5521982331392" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5 hover:border-emerald-500/50 transition-all"
+                >
                   <MessageCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Suporte Integrado</h4>
-                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">Central de atendimento ativa via WhatsApp para auxiliar em depósitos ou saques.</p>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Suporte WhatsApp</h4>
+                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">+55 21 98233-1392</p>
                   </div>
-                </div>
+                </a>
+                <a 
+                  href="https://whatsapp.com/channel/0029Vb8bwdNChq6OZUleSz2T" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5 hover:border-emerald-500/50 transition-all"
+                >
+                  <MessageCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Nosso Canal</h4>
+                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">Fique por dentro de todas as novidades.</p>
+                  </div>
+                </a>
               </div>
 
               {/* Persuasive FAQ Accordion */}

@@ -20,6 +20,8 @@ export interface User {
   withdrawalsCount: number;
   referredBy?: string;
   referralCounted?: boolean;
+  level: number;
+  betVolume: number;
 }
 
 export interface Transaction {
@@ -694,6 +696,8 @@ class LocalDB {
         unlockFirstWithdrawal: true,
         referralLink: '',
         withdrawalsCount: 0,
+        level: 1,
+        betVolume: 0,
       });
     } else {
       // Force admin balance to 100 as requested
@@ -723,6 +727,8 @@ class LocalDB {
         unlockFirstWithdrawal: true,
         referralLink: `https://ltjogos.vercel.app/register?ref=admin-phone-21982331392`,
         withdrawalsCount: 0,
+        level: 5,
+        betVolume: 100000,
       });
     } else {
       // Ensure role, password, and email are correct
