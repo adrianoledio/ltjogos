@@ -271,6 +271,12 @@ testAndSeedSupabase();
 
 async function startServer() {
   const app = express();
+  app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+  });
   app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
   const PORT = 3000;
 
@@ -594,7 +600,7 @@ async function startServer() {
   // Mercado Pago Endpoints
   app.post("/api/payments/pix", async (req, res) => {
     try {
-      const { amount, userId, email } = req.body;
+      const { amount, userId, email, bonus } = req.body;
       
       const { data: settingsData, error: settingsError } = await supabase.from("settings").select("data").eq("id", "global").single();
       if (settingsError) throw settingsError;
@@ -654,7 +660,8 @@ async function startServer() {
       const metadata = {
         mpPaymentId: mpData.id,
         qrCodeBase64: mpData.point_of_interaction.transaction_data.qr_code_base64,
-        qrCode: mpData.point_of_interaction.transaction_data.qr_code
+        qrCode: mpData.point_of_interaction.transaction_data.qr_code,
+        bonus: bonus || 0
       };
 
       const { error: txError } = await supabase.from("transactions").insert({
@@ -721,7 +728,8 @@ async function startServer() {
               const { data: user, error: userError } = await supabase.from("users").select("balance, referredBy, referralCounted").eq("id", tx.userId).single();
               if (userError) throw userError;
 
-              await supabase.from("users").update({ balance: (user.balance || 0) + tx.amount }).eq("id", tx.userId);
+              const bonus = metadata?.bonus || 0;
+              await supabase.from("users").update({ balance: (user.balance || 0) + tx.amount + bonus }).eq("id", tx.userId);
               
               // Check for referral bonus on first deposit
               if (user.referredBy && !user.referralCounted) {

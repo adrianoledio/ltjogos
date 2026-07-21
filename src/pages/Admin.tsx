@@ -135,7 +135,9 @@ export function Admin() {
     if (!targetUser) return;
 
     // Update balance
-    targetUser.balance += tx.amount;
+    const metadata = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata;
+    const bonus = metadata?.bonus || 0;
+    targetUser.balance += (tx.amount + bonus);
 
     // Check for referral bonus on first deposit
     if (targetUser.referredBy && !targetUser.referralCounted) {

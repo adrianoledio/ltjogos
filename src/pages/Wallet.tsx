@@ -2,7 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../data/db';
 import { toast } from 'sonner';
-import { ArrowDownToLine, ArrowUpFromLine, History, QrCode } from 'lucide-react';
+import { 
+  ArrowDownToLine, 
+  ArrowUpFromLine, 
+  History, 
+  QrCode,
+  ShieldCheck, 
+  Zap, 
+  Flame, 
+  Gift, 
+  CheckCircle2, 
+  ChevronRight, 
+  Sparkles, 
+  TrendingUp, 
+  HelpCircle,
+  Clock,
+  ChevronDown,
+  Lock,
+  MessageCircle
+} from 'lucide-react';
 
 export function Wallet() {
   const { user, updateBalance, refreshUser } = useAuth();
@@ -16,11 +34,20 @@ export function Wallet() {
   const [settings, setSettings] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const [tickerIndex, setTickerIndex] = useState(0);
 
   const [qrCode, setQrCode] = useState('');
   const [qrCodeBase64, setQrCodeBase64] = useState('');
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTickerIndex((prev) => (prev + 1) % 5);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,11 +115,19 @@ export function Wallet() {
 
   if (!user || loading) return <div className="text-center mt-20 text-sm">Carregando...</div>;
 
+  const calculateBonus = (valStr: string) => {
+    const val = parseFloat(valStr);
+    if (isNaN(val) || val < minDeposit) return 0;
+    if (val >= 200) return val * 0.75;
+    return val * 0.5;
+  };
+
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
     if (val >= minDeposit) {
       setIsGeneratingPix(true);
+      const bonusVal = calculateBonus(amount);
       try {
         // Try calling the real backend payment API
         const response = await fetch('/api/payments/pix', {
@@ -100,6 +135,7 @@ export function Wallet() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amount: val,
+            bonus: bonusVal,
             userId: user.id,
             email: user.email || `${user.phone}@ltjogos.com`
           })
@@ -169,6 +205,10 @@ export function Wallet() {
       type: 'withdraw',
       status: 'pending',
     });
+    
+    if (refreshUser) {
+      await refreshUser();
+    }
     
     setTransactions(await db.getTransactions());
     setAmount('');
@@ -241,106 +281,323 @@ export function Wallet() {
       )}
 
       <div className="bg-[#151020] rounded-2xl p-4 border border-white/5">
-        {activeTab === 'deposit' && (
-          <div className="animate-in fade-in space-y-6">
-            {/* Urgency & Scarcity Section */}
-            <div className="bg-gradient-to-r from-emerald-900/40 to-black/40 border border-emerald-500/20 rounded-2xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center animate-pulse">
-                  <span className="text-xl">🔥</span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Bônus de 50% Ativo</p>
-                  <p className="text-[10px] text-white/50">Expira em: <span className="font-mono font-bold text-white">{formatTime(timeLeft)}</span></p>
+        {activeTab === 'deposit' && (() => {
+          const currentAmountFloat = parseFloat(amount) || 0;
+          const calculatedBonusValue = calculateBonus(amount);
+          const totalPlayableBalance = currentAmountFloat + calculatedBonusValue;
+          
+          const depositPacks = [
+            { amt: 20, bonus: 10, title: 'Pacote Bronze', badge: 'Popular', icon: Zap, bg: 'from-blue-600/10 to-transparent' },
+            { amt: 50, bonus: 25, title: 'Pacote Prata', badge: 'Mais Comprado 🔥', icon: Flame, bg: 'from-amber-600/10 to-transparent', premium: true },
+            { amt: 100, bonus: 50, title: 'Pacote Ouro', badge: 'Melhor Oferta ✨', icon: Sparkles, bg: 'from-emerald-600/10 to-transparent' },
+            { amt: 200, bonus: 150, title: 'Pacote Lendário', badge: '+75% Extra VIP', icon: Gift, bg: 'from-purple-600/15 to-transparent', vvip: true }
+          ];
+
+          const tickerEvents = [
+            { text: "👤 Matheus S. depositou R$ 50 e faturou R$ 350 no Yakuza Ink!", time: "Agora mesmo" },
+            { text: "👤 Karina R. depositou R$ 20 e já resgatou Voucher de R$ 120!", time: "Há 1 min" },
+            { text: "👤 Felipe G. depositou R$ 100 e recebeu R$ 50 de bônus!", time: "Há 3 min" },
+            { text: "👤 Bruna L. depositou R$ 200 e garantiu R$ 350 de saldo!", time: "Há 5 min" },
+            { text: "👤 Thiago M. acabou de faturar R$ 800 de prêmio no Tattoo Cash!", time: "Há 10 min" }
+          ];
+
+          const faqs = [
+            {
+              q: "Como funciona o bônus de depósito?",
+              a: "Ao depositar qualquer valor a partir de R$ 20, você recebe automaticamente +50% de bônus na hora! Em depósitos de R$ 200 ou mais, seu bônus é turbinado para +75%!"
+            },
+            {
+              q: "O saldo de bônus é liberado imediatamente?",
+              a: "Sim! Assim que o seu pagamento via PIX for efetuado, tanto o valor depositado quanto o bônus serão creditados juntos em sua conta no mesmo segundo."
+            },
+            {
+              q: "Como converter meu saldo em vouchers de tatuagem?",
+              a: "A qualquer momento, você pode ir na aba 'Resgatar' e solicitar a conversão do seu saldo de vitória para um voucher exclusivo que pode ser utilizado diretamente no estúdio de tatuagem de alta qualidade de Adriano!"
+            },
+            {
+              q: "É seguro depositar?",
+              a: "Sim, 100% seguro! Nossos pagamentos via PIX são totalmente processados através do Banco Central e criptografados de ponta a ponta, oferecendo máxima segurança ao jogador."
+            }
+          ];
+
+          return (
+            <div className="animate-in fade-in space-y-6">
+              {/* Urgency & Promotion Banner */}
+              <div className="relative overflow-hidden bg-gradient-to-r from-purple-900/60 via-indigo-900/40 to-black/60 border border-brand-primary/30 rounded-2xl p-5 shadow-[0_4px_25px_rgba(255,204,0,0.15)]">
+                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-brand-primary/10 blur-3xl rounded-full" />
+                <div className="flex flex-col gap-3 relative z-10">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-primary/20 border border-brand-primary/30 text-[9px] font-black uppercase tracking-widest text-brand-primary animate-pulse">
+                      <Flame size={10} className="text-brand-primary" /> Bônus de Depósito Ativo
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-white/70 bg-black/40 px-2 py-0.5 rounded-lg border border-white/5">
+                      <Clock size={11} className="text-brand-primary animate-spin" /> {formatTime(timeLeft)}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-display font-black text-white leading-tight uppercase tracking-wide">
+                      Multiplique sua banca em até <span className="text-brand-primary font-black">+75% EXTRA</span>!
+                    </h3>
+                    <p className="text-[10px] text-white/60 mt-1">
+                      Deposite agora para turbinar suas chances nos jogos e garantir seu voucher de tatuagem muito mais rápido!
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[9px] text-white/40">
+                    <span>Apenas <strong className="text-brand-primary font-bold">{bonusesClaimed} pacotes promocionais</strong> restantes hoje</span>
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-white">{bonusesClaimed} bônus</p>
-                <p className="text-[9px] text-white/40 uppercase">restantes hoje</p>
+
+              {/* Social Proof Live Ticker */}
+              <div className="bg-black/30 border border-white/5 rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 overflow-hidden">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-primary"></span>
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-text-muted/60">Atividade Recente:</span>
+                </div>
+                <div className="flex-1 overflow-hidden min-w-0">
+                  <p className="text-[10px] text-brand-primary font-semibold truncate animate-pulse">
+                    {tickerEvents[tickerIndex].text}
+                  </p>
+                </div>
+                <span className="text-[8px] font-mono text-white/30 shrink-0">
+                  {tickerEvents[tickerIndex].time}
+                </span>
+              </div>
+
+              {!showQr ? (
+                <form onSubmit={handleDeposit} className="space-y-6">
+                  {/* Package Cards Selector */}
+                  <div className="space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-muted/70">Escolha um Pacote Recomendado para Iniciar</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {depositPacks.map((pack) => {
+                        const isSelected = currentAmountFloat === pack.amt;
+                        const PackIcon = pack.icon;
+                        return (
+                          <button
+                            key={pack.amt}
+                            type="button"
+                            onClick={() => setAmount(pack.amt.toString())}
+                            className={`relative text-left p-4 rounded-2xl border bg-gradient-to-br ${pack.bg} transition-all duration-300 overflow-hidden flex flex-col justify-between h-[100px] group ${
+                              isSelected
+                                ? 'border-brand-primary shadow-[0_0_15px_rgba(255,204,0,0.15)] bg-brand-primary/[0.04]'
+                                : pack.premium
+                                ? 'border-amber-500/20 hover:border-amber-500/50 hover:bg-amber-500/[0.02]'
+                                : pack.vvip
+                                ? 'border-purple-500/20 hover:border-purple-500/50 hover:bg-purple-500/[0.02]'
+                                : 'border-white/5 hover:border-white/20 hover:bg-white/[0.01]'
+                            }`}
+                          >
+                            <div className="absolute right-2 top-2 opacity-10 group-hover:opacity-30 transition-opacity">
+                              <PackIcon size={36} className={isSelected ? "text-brand-primary" : "text-white"} />
+                            </div>
+                            
+                            <div className="flex items-center justify-between w-full relative z-10">
+                              <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{pack.title}</span>
+                              <span className={`text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${
+                                pack.vvip ? 'bg-purple-500/20 text-purple-400' : pack.premium ? 'bg-amber-500/20 text-amber-400' : 'bg-brand-primary/20 text-brand-primary'
+                              }`}>
+                                {pack.badge}
+                              </span>
+                            </div>
+
+                            <div className="mt-auto relative z-10">
+                              <p className="text-xl font-display font-black text-white">R$ {pack.amt}</p>
+                              <p className={`text-[9px] font-bold ${isSelected ? "text-brand-primary" : "text-emerald-400"}`}>
+                                + R$ {pack.bonus} de bônus (Jogue com R$ {pack.amt + pack.bonus})
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Manual Input Container */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-text-muted/70">Ou Insira outro valor para depositar</p>
+                      <span className="text-[8px] font-bold text-white/30">Mínimo R$ {minDeposit.toFixed(2)}</span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20 font-black text-xl">R$</span>
+                      <input
+                        type="number"
+                        min={minDeposit}
+                        step="0.01"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        className="w-full bg-white/[0.02] border border-white/10 rounded-3xl pl-16 pr-6 py-5 text-3xl font-display font-black text-center text-white focus:outline-none focus:border-brand-primary/50 transition-all placeholder:text-white/5"
+                        placeholder="0.00"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Interactive Multiplier Simulator */}
+                  {currentAmountFloat >= minDeposit && (
+                    <div className="bg-black/40 border border-white/5 rounded-2xl p-4 space-y-3 animate-in slide-in-from-bottom duration-300">
+                      <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                        <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                          <TrendingUp size={12} className="text-brand-primary animate-pulse" /> Simulador de Banca
+                        </span>
+                        <span className="text-[9px] text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded-full uppercase">
+                          {currentAmountFloat >= 200 ? 'Bônus VIP 75% Ativo!' : 'Bônus 50% Ativo!'}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="p-2 rounded-xl bg-white/[0.01] border border-white/5">
+                          <p className="text-[8px] text-white/40 uppercase font-black">Depósito</p>
+                          <p className="text-sm font-black text-white mt-1">R$ {currentAmountFloat.toFixed(2)}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-white/[0.01] border border-white/5">
+                          <p className="text-[8px] text-white/40 uppercase font-black">Bônus Creditado</p>
+                          <p className="text-sm font-black text-brand-primary mt-1">+ R$ {calculatedBonusValue.toFixed(2)}</p>
+                        </div>
+                        <div className="p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
+                          <p className="text-[8px] text-emerald-400 uppercase font-black">Saldo Total</p>
+                          <p className="text-sm font-black text-emerald-400 mt-1">R$ {totalPlayableBalance.toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2 bg-brand-primary/5 border border-brand-primary/10 rounded-xl">
+                        <Gift size={14} className="text-brand-primary shrink-0 animate-bounce" />
+                        <p className="text-[9px] text-white/80 leading-snug">
+                          Incrível! Você receberá um saldo extra de <strong className="text-brand-primary">R$ {calculatedBonusValue.toFixed(2)}</strong> gratuito! Sua banca terá <strong className="text-emerald-400">R$ {totalPlayableBalance.toFixed(2)}</strong> para multiplicar nos jogos!
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Submission Button */}
+                  <button
+                    type="submit"
+                    disabled={isGeneratingPix}
+                    className="w-full bg-brand-primary text-surface-dark hover:bg-brand-primary-hover font-display font-black py-4 rounded-2xl text-xs uppercase tracking-[0.25em] transition-all duration-300 shadow-[0_4px_25px_rgba(255,204,0,0.2)] hover:shadow-[0_4px_35px_rgba(255,204,0,0.35)] hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isGeneratingPix ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-surface-dark border-t-transparent rounded-full animate-spin" />
+                        Gerando PIX...
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={14} /> Ativar Bônus e Depositar via PIX
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <div className="text-center space-y-6 py-6 animate-in fade-in">
+                  <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl shadow-emerald-500/20">
+                    {qrCodeBase64 ? (
+                      <img src={`data:image/jpeg;base64,${qrCodeBase64}`} alt="QR Code PIX" className="w-48 h-48" />
+                    ) : (
+                      <QrCode size={150} className="text-black" />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-white/70 font-bold uppercase tracking-widest">Escaneie o QR Code</p>
+                    <p className="text-[10px] text-white/40">ou copie o código PIX abaixo</p>
+                  </div>
+                  
+                  {qrCode && (
+                    <div className="bg-black/40 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+                      <p className="text-[10px] font-mono text-white/60 truncate flex-1">{qrCode}</p>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(qrCode);
+                          toast.success('Código PIX copiado!');
+                        }}
+                        className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl hover:bg-emerald-500/30 transition-all"
+                      >
+                        Copiar
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-center gap-3 text-emerald-400">
+                    <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Aguardando pagamento...</span>
+                  </div>
+                  
+                  <button 
+                    onClick={() => setShowQr(false)}
+                    className="text-[10px] text-white/40 hover:text-white uppercase tracking-widest font-bold mt-4"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              )}
+
+              {/* Trust & Guarantee Badges Grid */}
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
+                <div className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                  <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">PIX Instantâneo</h4>
+                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">Crédito liberado na sua carteira de forma 100% automática em segundos.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                  <Lock size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Ambiente Seguro</h4>
+                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">Criptografia SSL de nível bancário assegurada pelo Banco Central do Brasil.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Vouchers Garantidos</h4>
+                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">Todos os seus lucros acumulados se transformam em cupons reais de tatuagem.</p>
+                  </div>
+                </div>
+                <div className="flex gap-2.5 p-3 rounded-xl bg-white/[0.01] border border-white/5">
+                  <MessageCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-white uppercase tracking-wide">Suporte Integrado</h4>
+                    <p className="text-[9px] text-white/55 leading-snug mt-0.5">Central de atendimento ativa via WhatsApp para auxiliar em depósitos ou saques.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Persuasive FAQ Accordion */}
+              <div className="space-y-2 pt-4 border-t border-white/5">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted/70 flex items-center gap-1">
+                  <HelpCircle size={11} className="text-brand-primary" /> Dúvidas Frequentes
+                </h4>
+                <div className="space-y-2">
+                  {faqs.map((faq, idx) => {
+                    const isOpen = openFaqIndex === idx;
+                    return (
+                      <div key={idx} className="bg-white/[0.01] border border-white/5 rounded-xl overflow-hidden transition-all">
+                        <button
+                          type="button"
+                          onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                          className="w-full flex items-center justify-between p-3.5 text-left text-[11px] font-bold text-white hover:bg-white/[0.01] transition-all"
+                        >
+                          <span>{faq.q}</span>
+                          <ChevronDown size={14} className={`text-text-muted/60 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isOpen && (
+                          <div className="px-3.5 pb-3.5 text-[10px] text-white/60 leading-relaxed border-t border-white/5 pt-2 bg-black/20 animate-in fade-in duration-300">
+                            {faq.a}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-
-            {!showQr ? (
-              <form onSubmit={handleDeposit} className="space-y-6">
-                <div className="relative">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20 font-black text-xl">R$</span>
-                  <input
-                    type="number"
-                    min={minDeposit}
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-3xl pl-16 pr-6 py-6 text-4xl font-display font-black text-center text-white focus:outline-none focus:border-brand-primary/50 transition-all placeholder:text-white/5"
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-3 gap-3">
-                  {[minDeposit, minDeposit * 2, minDeposit * 5].map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setAmount(val.toString())}
-                      className="py-3 rounded-2xl border border-white/10 text-[10px] font-black text-white/40 hover:text-white hover:bg-white/5 hover:border-white/20 transition-all uppercase tracking-widest"
-                    >
-                      + R$ {val}
-                    </button>
-                  ))}
-                </div>
-                
-                <button
-                  type="submit"
-                  disabled={isGeneratingPix}
-                  className="btn-primary w-full py-5 text-sm uppercase tracking-[0.2em] disabled:opacity-50"
-                >
-                  {isGeneratingPix ? 'Gerando PIX...' : 'Confirmar Depósito'}
-                </button>
-              </form>
-            ) : (
-              <div className="text-center space-y-6 py-6 animate-in fade-in">
-                <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl shadow-emerald-500/20">
-                  {qrCodeBase64 ? (
-                    <img src={`data:image/jpeg;base64,${qrCodeBase64}`} alt="QR Code PIX" className="w-48 h-48" />
-                  ) : (
-                    <QrCode size={150} className="text-black" />
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-white/70 font-bold uppercase tracking-widest">Escaneie o QR Code</p>
-                  <p className="text-[10px] text-white/40">ou copie o código PIX abaixo</p>
-                </div>
-                
-                {qrCode && (
-                  <div className="bg-black/40 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
-                    <p className="text-[10px] font-mono text-white/60 truncate flex-1">{qrCode}</p>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(qrCode);
-                        toast.success('Código PIX copiado!');
-                      }}
-                      className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl hover:bg-emerald-500/30 transition-all"
-                    >
-                      Copiar
-                    </button>
-                  </div>
-                )}
-                
-                <div className="flex items-center justify-center gap-3 text-emerald-400">
-                  <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Aguardando pagamento...</span>
-                </div>
-                
-                <button 
-                  onClick={() => setShowQr(false)}
-                  className="text-[10px] text-white/40 hover:text-white uppercase tracking-widest font-bold mt-4"
-                >
-                  Voltar
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {activeTab === 'withdraw' && (
           <div className="animate-in fade-in">
