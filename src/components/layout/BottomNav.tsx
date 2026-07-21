@@ -21,7 +21,7 @@ export function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-md h-16 bg-[#1a1428]/90 backdrop-blur-2xl border border-white/10 rounded-2xl z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center justify-around px-2">
+    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[95%] max-w-md h-16 bg-surface-card/90 backdrop-blur-2xl border border-border-rgba rounded-2xl z-50 shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex items-center justify-around px-2 transition-all duration-300">
       {links.map((link) => {
         const isActive = pathname === link.to;
         return (
@@ -39,7 +39,7 @@ export function BottomNav() {
             
             <div className={cn(
               "relative p-2 rounded-xl transition-all duration-300",
-              isActive ? "text-[#FFCC00]" : "text-white/40 group-hover:text-white/70",
+              isActive ? "text-[#FFCC00]" : "text-text-muted/60 group-hover:text-text-main",
               link.highlight && !isActive && "text-[#FFCC00]"
             )}>
               <link.icon 

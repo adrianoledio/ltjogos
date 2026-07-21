@@ -1948,10 +1948,10 @@ CREATE POLICY "Allow all access banners" ON public.banners FOR ALL USING (true);
                 banners.map((banner) => (
                   <div key={banner.id} className={`group relative rounded-2xl border overflow-hidden transition-all ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
                     <div className="aspect-video relative overflow-hidden">
-                      <img src={banner.imageUrl} alt={banner.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                      <img src={banner.imageUrl} alt={banner.link || 'Banner'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
                       <div className="absolute bottom-1.5 left-2 right-2">
-                        <h3 className="text-[9px] font-black text-white truncate">{banner.title}</h3>
+                        <h3 className="text-[9px] font-black text-white truncate">{banner.link || 'Sem Link'}</h3>
                       </div>
                     </div>
                     <div className="p-1.5 flex items-center justify-between">

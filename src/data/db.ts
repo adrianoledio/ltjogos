@@ -76,6 +76,9 @@ export interface SystemSettings {
   gamePrizes: GamePrizeConfig[];
   referralsForFirstWithdrawal: number;
   mpAccessToken?: string;
+  minPrize?: number;
+  maxPrize?: number;
+  prizeTiers?: Array<{ min: number; max: number; weight: number }>;
 }
 
 export interface Notification {
@@ -183,6 +186,32 @@ const DEFAULT_GAMES: GameConfig[] = [
     bgContainer: '',
     bgMusic: '',
     category: 'roletas',
+  },
+  {
+    id: 'ink-reveal',
+    name: 'Ink Reveal',
+    active: true,
+    minBet: 1.00,
+    maxBet: 50.00,
+    rtp: 96,
+    thumbnail: 'https://images.unsplash.com/photo-1560707854-fb9a10eea18b?q=80&w=800&auto=format&fit=crop',
+    bgPage: '',
+    bgContainer: '',
+    bgMusic: '',
+    category: 'slots',
+  },
+  {
+    id: 'yakuza-ink',
+    name: 'Yakuza Ink',
+    active: true,
+    minBet: 0.10,
+    maxBet: 100.00,
+    rtp: 98,
+    thumbnail: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=800&auto=format&fit=crop',
+    bgPage: '',
+    bgContainer: '',
+    bgMusic: '',
+    category: 'slots',
   },
 ];
 
@@ -409,20 +438,47 @@ class LocalDB {
 
   // Settings
   async getSettings(): Promise<SystemSettings> {
+    let settingsData: any = null;
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
         if (data) {
+          settingsData = data;
           this.setStorageItem('lt_settings', data);
-          return data;
         }
       }
     } catch (e) {
       console.warn("Could not fetch settings from API, using localStorage cache:", e);
     }
-    const settings = this.getStorageItem<SystemSettings | null>('lt_settings', null);
-    return settings || DEFAULT_SETTINGS;
+
+    if (!settingsData) {
+      settingsData = this.getStorageItem<SystemSettings | null>('lt_settings', null);
+    }
+
+    if (!settingsData) {
+      return DEFAULT_SETTINGS;
+    }
+
+    // Merge DEFAULT_SETTINGS to ensure any newly added structure/defaults exist
+    const merged = { ...DEFAULT_SETTINGS, ...settingsData };
+    if (!merged.gamePrizes || !Array.isArray(merged.gamePrizes) || merged.gamePrizes.length === 0) {
+      merged.gamePrizes = DEFAULT_SETTINGS.gamePrizes;
+    } else {
+      const mergedPrizes = [...DEFAULT_SETTINGS.gamePrizes];
+      if (Array.isArray(settingsData.gamePrizes)) {
+        settingsData.gamePrizes.forEach((p: any) => {
+          const idx = mergedPrizes.findIndex(mp => mp.gameId === p.gameId);
+          if (idx !== -1) {
+            mergedPrizes[idx] = p;
+          } else {
+            mergedPrizes.push(p);
+          }
+        });
+      }
+      merged.gamePrizes = mergedPrizes;
+    }
+    return merged;
   }
 
   async saveSettings(settings: SystemSettings) {
@@ -665,7 +721,7 @@ class LocalDB {
         lastPrizeDate: new Date().toISOString().split('T')[0],
         referrals: 0,
         unlockFirstWithdrawal: true,
-        referralLink: `${window.location.origin}/register?ref=admin-phone-21982331392`,
+        referralLink: `https://ltjogos.vercel.app/register?ref=admin-phone-21982331392`,
         withdrawalsCount: 0,
       });
     } else {

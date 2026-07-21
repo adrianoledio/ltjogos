@@ -24,16 +24,28 @@ export function Referral() {
 
   if (!user || loading) return null;
 
+  const referralsForFirstWithdrawal = Math.max(1, Number(settings?.referralsForFirstWithdrawal) || 3);
+  const rawProgress = ((user.referrals || 0) / referralsForFirstWithdrawal) * 100;
+  const progress = isNaN(rawProgress) || !isFinite(rawProgress) ? 0 : Math.min(100, Math.max(0, rawProgress));
+
+  const getReferralLink = () => {
+    if (!user.referralLink) return '';
+    try {
+      const url = new URL(user.referralLink);
+      return `https://ltjogos.vercel.app${url.pathname}${url.search}`;
+    } catch {
+      return `https://ltjogos.vercel.app/register?ref=${user.id}`;
+    }
+  };
+  const displayReferralLink = getReferralLink();
+
   const handleCopy = () => {
-    if (user.referralLink) {
-      navigator.clipboard.writeText(user.referralLink);
+    if (displayReferralLink) {
+      navigator.clipboard.writeText(displayReferralLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
-
-  const referralsForFirstWithdrawal = settings?.referralsForFirstWithdrawal || 3;
-  const progress = Math.min(100, ((user.referrals || 0) / referralsForFirstWithdrawal) * 100);
 
   return (
     <div className="space-y-8 animate-in fade-in">
@@ -78,7 +90,7 @@ export function Referral() {
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 text-center">Seu Link de Indicação</p>
           <div className="flex gap-3">
             <div className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 font-mono text-xs text-white/40 truncate flex items-center">
-              {user.referralLink || 'Link não gerado'}
+              {displayReferralLink || 'Link não gerado'}
             </div>
             <button 
               onClick={handleCopy}

@@ -335,7 +335,7 @@ export function TattooCash() {
         } else if (finalCenter.type === 'free_spins') {
           isWin = true;
           // Free spins triggered!
-          playSfx('bonus_trigger');
+          playSfx('bonus_trigger' as any);
         }
 
         if (currentWin > 0) {
@@ -395,7 +395,7 @@ export function TattooCash() {
     await updateBalance(-cost, 'bet', 'tattoo-cash', { bet: cost, isBuyFeature: true });
     
     // Play sound and immediately launch 5 free spins
-    playSfx('bonus_trigger');
+    playSfx('bonus_trigger' as any);
     setFreeSpins(5);
     setTotalFreeSpinWin(0);
     spin();

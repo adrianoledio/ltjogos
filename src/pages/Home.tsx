@@ -1,16 +1,31 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
+const JoyrideLazy = React.lazy(() => import('react-joyride').then(module => ({ default: module.Joyride })));
+const Joyride = JoyrideLazy as any;
+import type { Step } from 'react-joyride';
 import { db, GameConfig } from '../data/db';
-import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp } from 'lucide-react';
+import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp, Search, X } from 'lucide-react';
 import { HeroCarousel } from '../components/home/HeroCarousel';
 import { CategoryFilter } from '../components/home/CategoryFilter';
+import { requestNotificationPermission, showNotification } from '../lib/notifications';
+
+const steps: Step[] = [
+  {
+    target: '#deposit-button',
+    content: 'Clique aqui para fazer seu depósito e começar a jogar!',
+  },
+  {
+    target: '#games-section',
+    content: 'Aqui você encontra todos os nossos jogos disponíveis.',
+  },
+];
 
 const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge }) => (
   <div className="relative group">
     <Link
       to={`/app/games/${game.id}`}
-      className={`block ${aspect} relative overflow-hidden rounded-[18px] border border-white/10 group-hover:border-brand-primary/40 transition-all duration-300 shadow-xl z-10 bg-surface-dark`}
+      className={`block ${aspect} relative overflow-hidden rounded-xl border border-white/10 group-hover:border-brand-primary/40 transition-all duration-300 shadow-xl z-10 bg-surface-dark`}
     >
       {/* Cover Image - completely clean with no zoom, no overlays, and no text truncation */}
       <div className="absolute inset-0">
@@ -28,27 +43,85 @@ const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean,
 export function Home() {
   const [games, setGames] = useState<GameConfig[]>([]);
   const [activeCategory, setActiveCategory] = useState('all');
+  const [runTour, setRunTour] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const prevGamesCount = useRef(0);
 
   useEffect(() => {
+    requestNotificationPermission();
+
     const fetchGames = async () => {
       const allGames = await db.getGames();
-      setGames(allGames.filter((g) => g.active));
+      const activeGames = allGames.filter((g) => g.active);
+      
+      if (prevGamesCount.current > 0 && activeGames.length > prevGamesCount.current) {
+        showNotification("Novos Jogos!", "Confira os novos jogos que adicionamos!");
+      }
+      prevGamesCount.current = activeGames.length;
+      setGames(activeGames);
     };
     fetchGames();
     
     // Poll for updates every 5 seconds to ensure changes in DB reflect in UI
     const interval = setInterval(fetchGames, 5000);
+
+    // Check tour status
+    const seen = localStorage.getItem('tourSeen');
+    if (!seen) {
+      setRunTour(true);
+    }
+
+    // Check daily bonus
+    const today = new Date().toISOString().split('T')[0];
+    const bonusNotified = localStorage.getItem(`bonusNotified_${today}`);
+    const checkBonus = async () => {
+      const storedUserId = localStorage.getItem('lt_active_user');
+      if (storedUserId) {
+        const user = await db.getUser(storedUserId);
+        if (user && user.lastPrizeDate !== today && !bonusNotified) {
+          showNotification("Bônus Diário", "Seu bônus diário está disponível!");
+          localStorage.setItem(`bonusNotified_${today}`, 'true');
+        }
+      }
+    };
+    checkBonus();
+
     return () => clearInterval(interval);
   }, []);
 
-  const filteredGames = activeCategory === 'all' 
+  const categoryFiltered = activeCategory === 'all' 
     ? games 
     : activeCategory === 'popular' 
       ? games.slice(0, 6) 
       : games.filter(g => g.category === activeCategory);
 
+  const filteredGames = searchQuery.trim() === ''
+    ? categoryFiltered
+    : categoryFiltered.filter(g => g.name.toLowerCase().includes(searchQuery.toLowerCase().trim()));
+
   return (
     <div className="flex flex-col h-full -m-4 overflow-hidden">
+      <React.Suspense fallback={null}>
+        <Joyride
+          run={runTour}
+          steps={steps}
+          continuous={true}
+          showSkipButton={true}
+          callback={(data) => {
+            if (data.status === 'finished' || data.status === 'skipped') {
+              localStorage.setItem('tourSeen', 'true');
+              setRunTour(false);
+            }
+          }}
+          styles={{
+            options: {
+              primaryColor: '#FFCC00',
+              textColor: '#333',
+              backgroundColor: '#fff',
+            },
+          } as any}
+        />
+      </React.Suspense>
       
       {/* Hero Section */}
       <section className="shrink-0 p-4 pb-0">
@@ -59,7 +132,33 @@ export function Home() {
 
       {/* Categories */}
       <section className="shrink-0 py-4 px-4">
-        <CategoryFilter active={activeCategory} onChange={setActiveCategory} />
+        <CategoryFilter active={activeCategory} onChange={(cat) => {
+          setActiveCategory(cat);
+          setSearchQuery('');
+        }} />
+      </section>
+
+      {/* Search Bar */}
+      <section className="shrink-0 px-4 pb-2">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted/80 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Pesquisar jogos..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-surface-card border border-border-rgba text-text-main placeholder:text-text-muted/50 text-xs font-semibold pl-10 pr-10 py-2.5 rounded-xl focus:border-brand-primary/40 focus:outline-none transition-all shadow-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-surface-dark transition-all animate-fade-in"
+              title="Limpar pesquisa"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </section>
 
       {/* Game Grid */}
@@ -81,6 +180,7 @@ export function Home() {
 
         <motion.div 
           layout
+          id="games-section"
           className="grid grid-cols-3 gap-3 sm:gap-6"
         >
           <AnimatePresence mode="popLayout">

@@ -41,7 +41,7 @@ export function Wallet() {
   const minWithdrawal = settings?.minWithdrawal || 60;
   const referralsRequired = settings?.referralsForFirstWithdrawal || 3;
 
-  const canWithdraw = (user?.earnings || 0) >= minWithdrawal && (user?.referrals || 0) >= referralsRequired;
+  const canWithdraw = (user?.balance || 0) >= minWithdrawal && (user?.referrals || 0) >= referralsRequired;
 
   const handleWithdrawClick = () => {
     if (!canWithdraw) {
@@ -61,8 +61,6 @@ export function Wallet() {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-
-  if (!user || loading) return <div className="text-center mt-20 text-sm">Carregando...</div>;
 
   // Poll to check if transaction has completed
   useEffect(() => {
@@ -87,6 +85,8 @@ export function Wallet() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [showQr, user, activeTxId, refreshUser]);
+
+  if (!user || loading) return <div className="text-center mt-20 text-sm">Carregando...</div>;
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,47 +118,10 @@ export function Wallet() {
           }
         }
         
-        // If the backend call is unreachable, or returns an error (e.g. mpAccessToken not configured), fallback to simulation
-        console.warn("Mercado Pago or backend endpoint unavailable, falling back to simulation...");
-        const dummyPixCode = "00020126360014BR.GOV.BCB.PIX0114+5511999999995204000053039865405" + val.toFixed(2) + "5802BR5920LT JOGOS PLATAFORMA6009SAO PAULO62070503***6304" + Math.floor(Math.random() * 9999).toString(16).toUpperCase();
-        
-        // Add a pending transaction to local DB
-        const resTx = await db.addTransaction({
-          userId: user.id,
-          amount: val,
-          type: 'deposit',
-          status: 'pending',
-          metadata: {
-            mpPaymentId: 'mock_' + Math.random().toString(36).substring(2, 9),
-            qrCode: dummyPixCode
-          }
-        });
-
-        setQrCode(dummyPixCode);
-        setQrCodeBase64(""); // We don't have a base64 for the mock
-        setActiveTxId(resTx.id);
-        setShowQr(true);
-        setTransactions(await db.getTransactions());
-        toast.success('PIX simulado gerado com sucesso!');
-        
-        // Simulate auto-approval after 15 seconds for testing
-        setTimeout(async () => {
-          const txs = await db.getTransactions();
-          const pendingTx = txs.find(t => t.id === resTx.id && t.status === 'pending');
-          if (pendingTx) {
-            pendingTx.status = 'completed';
-            await db.updateTransaction(pendingTx);
-            
-            const currentUser = await db.getUser(user.id);
-            if (currentUser) {
-              currentUser.balance += pendingTx.amount;
-              await db.updateUser(currentUser);
-              if (refreshUser) {
-                await refreshUser();
-              }
-            }
-          }
-        }, 15000);
+        // Handle API errors
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to generate real PIX:", errorData);
+        toast.error('Erro ao gerar PIX: ' + (errorData.error || 'Tente novamente mais tarde.'));
 
       } catch (error) {
         console.error(error);
@@ -180,8 +143,8 @@ export function Wallet() {
       return;
     }
     
-    if (val > user.earnings) {
-      toast.error('Saldo de ganhos insuficiente.');
+    if (val > user.balance) {
+      toast.error('Saldo disponível insuficiente.');
       return;
     }
 
@@ -194,7 +157,7 @@ export function Wallet() {
     // Process withdrawal
     const updatedUser = { 
       ...user, 
-      earnings: user.earnings - val,
+      balance: user.balance - val,
       withdrawalsCount: (user.withdrawalsCount || 0) + 1,
     };
     
@@ -215,22 +178,14 @@ export function Wallet() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="glass-card p-6 flex flex-col items-center text-center gap-3 relative overflow-hidden group">
+      <div className="grid grid-cols-1">
+        <div className="glass-card p-6 flex flex-col items-center text-center gap-3 relative overflow-hidden group w-full">
           <div className="absolute top-0 right-0 w-20 h-20 bg-brand-primary/10 blur-2xl rounded-full -mr-10 -mt-10 transition-all group-hover:bg-brand-primary/20" />
           <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] relative z-10">Saldo Disponível</p>
-          <p className="text-3xl font-display font-black text-brand-primary relative z-10">
+          <p className="text-3.5xl font-display font-black text-brand-primary relative z-10">
             R$ {user.balance.toFixed(2)}
           </p>
-          <div className="w-10 h-1 bg-brand-primary/20 rounded-full relative z-10" />
-        </div>
-        <div className="glass-card p-6 flex flex-col items-center text-center gap-3 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-brand-secondary/10 blur-2xl rounded-full -mr-10 -mt-10 transition-all group-hover:bg-brand-secondary/20" />
-          <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] relative z-10">Ganhos Acumulados</p>
-          <p className="text-3xl font-display font-black text-brand-secondary relative z-10">
-            R$ {(user.earnings || 0).toFixed(2)}
-          </p>
-          <div className="w-10 h-1 bg-brand-secondary/20 rounded-full relative z-10" />
+          <div className="w-16 h-1 bg-brand-primary/20 rounded-full relative z-10" />
         </div>
       </div>
 
@@ -266,9 +221,9 @@ export function Wallet() {
           <div className="bg-[#151020] border border-white/10 rounded-2xl p-6 max-w-sm w-full space-y-4">
             <h3 className="text-lg font-bold text-white text-center">Requisitos para Resgate</h3>
             <div className="space-y-3">
-              <div className={`flex items-center gap-3 p-3 rounded-xl border ${ (user.earnings || 0) >= minWithdrawal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                <span className="text-2xl">{(user.earnings || 0) >= minWithdrawal ? '✅' : '❌'}</span>
-                <p className="text-xs text-white">Acumular pelo menos R$ {minWithdrawal.toFixed(2)} em ganhos (Atual: R$ {(user.earnings || 0).toFixed(2)})</p>
+              <div className={`flex items-center gap-3 p-3 rounded-xl border ${ (user.balance || 0) >= minWithdrawal ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                <span className="text-2xl">{(user.balance || 0) >= minWithdrawal ? '✅' : '❌'}</span>
+                <p className="text-xs text-white">Acumular pelo menos R$ {minWithdrawal.toFixed(2)} em saldo disponível (Atual: R$ {(user.balance || 0).toFixed(2)})</p>
               </div>
               <div className={`flex items-center gap-3 p-3 rounded-xl border ${user.referrals >= referralsRequired ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
                 <span className="text-2xl">{user.referrals >= referralsRequired ? '✅' : '❌'}</span>
@@ -398,7 +353,7 @@ export function Wallet() {
                 <input
                   type="number"
                   min={minWithdrawal}
-                  max={user.earnings}
+                  max={user.balance}
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -425,9 +380,9 @@ export function Wallet() {
                     handleWithdrawClick();
                   }
                 }}
-                className={`w-full text-white font-bold py-3.5 rounded-xl text-sm ${(user.earnings || 0) < minWithdrawal ? 'bg-gray-500' : 'bg-[#FF007F]'}`}
+                className={`w-full text-white font-bold py-3.5 rounded-xl text-sm ${(user.balance || 0) < minWithdrawal ? 'bg-gray-500' : 'bg-[#FF007F]'}`}
               >
-                {(user.earnings || 0) < minWithdrawal ? `Mínimo R$ ${minWithdrawal.toFixed(2)}` : 'Solicitar Voucher'}
+                {(user.balance || 0) < minWithdrawal ? `Mínimo R$ ${minWithdrawal.toFixed(2)}` : 'Solicitar Voucher'}
               </button>
             </form>
           </div>

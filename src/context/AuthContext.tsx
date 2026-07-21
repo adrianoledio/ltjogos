@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (found) {
       let updated = false;
       if (!found.referralLink) {
-        found.referralLink = `${window.location.origin}/register?ref=${found.id}`;
+        found.referralLink = `https://ltjogos.vercel.app/register?ref=${found.id}`;
         updated = true;
       }
       if (updated) {
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const userId = Math.random().toString(36).substring(2, 9);
-    const referralLink = `${window.location.origin}/register?ref=${userId}`;
+    const referralLink = `https://ltjogos.vercel.app/register?ref=${userId}`;
     
     // Check for referral
     const urlParams = new URLSearchParams(window.location.search);
@@ -157,9 +157,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (type === 'bet') {
       updatedUser.balance += amount; // amount is negative
     } else if (type === 'win') {
-      updatedUser.earnings += amount; // amount is positive
+      updatedUser.balance += amount; // amount is positive
     } else if (type === 'withdraw') {
-      updatedUser.earnings -= amount; // amount is positive
+      updatedUser.balance -= amount; // amount is positive
     }
     
     await db.updateUser(updatedUser);

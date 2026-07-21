@@ -2,9 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Supabase Configuration
 let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
@@ -182,6 +179,32 @@ async function testAndSeedSupabase() {
           bgMusic: '',
           category: 'roletas',
         },
+        {
+          id: 'ink-reveal',
+          name: 'Ink Reveal',
+          active: true,
+          minBet: 1,
+          maxBet: 50,
+          rtp: 96,
+          thumbnail: 'https://images.unsplash.com/photo-1560707854-fb9a10eea18b?q=80&w=800&auto=format&fit=crop',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'slots',
+        },
+        {
+          id: 'yakuza-ink',
+          name: 'Yakuza Ink',
+          active: true,
+          minBet: 0.1,
+          maxBet: 100,
+          rtp: 98,
+          thumbnail: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=800&auto=format&fit=crop',
+          bgPage: '',
+          bgContainer: '',
+          bgMusic: '',
+          category: 'slots',
+        },
       ];
       
       for (const g of DEFAULT_GAMES) {
@@ -274,11 +297,11 @@ async function startServer() {
   });
 
   app.post("/api/users", async (req, res) => {
-    console.log("POST /api/users called");
+    console.log("POST /api/users called with body:", JSON.stringify(req.body));
     try {
       const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
       console.log("Saving user:", id);
-      const { error } = await supabase.from("users").upsert({
+      const { error, data } = await supabase.from("users").upsert({
         id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, 
         referrals: referrals || 0, 
         unlockFirstWithdrawal: unlockFirstWithdrawal ? true : false, 
@@ -290,7 +313,7 @@ async function startServer() {
       });
       if (error) {
         console.error("Supabase error saving user:", error);
-        return res.status(400).json({ error: error.message });
+        return res.status(400).json({ error: error.message, details: error.details, code: error.code });
       }
       res.json({ success: true });
     } catch (error: any) {
@@ -456,6 +479,20 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/users", async (req, res) => {
+    try {
+      const { error } = await supabase.from("users").delete().neq("id", "none");
+      if (error) {
+        console.error("Supabase error deleting users:", error);
+        return res.status(400).json({ error: error.message });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Internal error deleting users:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   // Promotions
   app.get("/api/promotions", async (req, res) => {
     try {
@@ -564,6 +601,7 @@ async function startServer() {
       const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
       
       if (!settings || !settings.mpAccessToken) {
+        console.error("Mercado Pago Access Token não configurado nas configurações globais.");
         return res.status(400).json({ error: "Mercado Pago não configurado." });
       }
 
@@ -580,20 +618,35 @@ async function startServer() {
           transaction_amount: amount,
           description: "Depósito na Plataforma",
           payment_method_id: "pix",
-          notification_url: `https://${req.get('host')}/api/webhooks/mercadopago`,
+          notification_url: process.env.APP_URL ? `${process.env.APP_URL}/api/webhooks/mercadopago` : `https://${req.get('host')}/api/webhooks/mercadopago`,
           payer: {
             email: email || "usuario@exemplo.com",
             first_name: "Usuário",
-            last_name: "Plataforma"
+            last_name: "Plataforma",
+            identification: {
+              type: "CPF",
+              number: "00000000000"
+            }
+          },
+          additional_info: {
+            payer: {
+              first_name: "Usuário",
+              last_name: "Plataforma",
+              phone: {
+                area_code: "11",
+                number: "999999999"
+              }
+            }
           }
         })
       });
 
       const mpData = await mpResponse.json();
+      console.log("Resposta do Mercado Pago:", JSON.stringify(mpData));
 
       if (!mpResponse.ok) {
         console.error("Erro no Mercado Pago:", mpData);
-        return res.status(400).json({ error: "Erro ao gerar PIX no Mercado Pago." });
+        return res.status(400).json({ error: "Erro ao gerar PIX no Mercado Pago.", details: mpData });
       }
 
       // Create pending transaction

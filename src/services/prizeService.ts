@@ -11,8 +11,17 @@ export class PrizeService {
     // Reset daily totals if date changed (dry run reset)
     await this.checkAndResetDailyTotals(user, settings, today);
 
-    const gamePrizeConfig = settings.gamePrizes.find(p => p.gameId === gameCategory) || 
-                           settings.gamePrizes.find(p => p.gameId === 'slots');
+    const gamePrizeConfig = (settings.gamePrizes && settings.gamePrizes.find(p => p.gameId === gameCategory)) || 
+                           (settings.gamePrizes && settings.gamePrizes.find(p => p.gameId === 'slots')) ||
+                           {
+                             gameId: 'slots',
+                             premios: [
+                               { tipo: "Comum", peso: 50, premioMin: 50, premioMax: 50, custoReal: 12.5 },
+                               { tipo: "Médio", peso: 30, premioMin: 100, premioMax: 100, custoReal: 25 },
+                               { tipo: "Raro", peso: 15, premioMin: 150, premioMax: 180, custoReal: 37.5 },
+                               { tipo: "Premium", peso: 5, premioMin: 180, premioMax: 200, custoReal: 50 }
+                             ]
+                           };
 
     if (!gamePrizeConfig) throw new Error("Game prize config not found");
 

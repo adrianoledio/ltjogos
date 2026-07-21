@@ -19,7 +19,7 @@ export function Register() {
     try {
       const success = await register(name, phone, password);
       if (success) {
-        navigate('/app');
+        navigate('/app/wallet');
       } else {
         setError('Erro ao criar conta');
       }

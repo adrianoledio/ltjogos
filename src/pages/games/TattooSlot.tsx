@@ -991,7 +991,11 @@ export function TattooSlot() {
 
       <AnimatePresence>
         {!isGameLoaded && (
-          <GameLoader gameId="tattoo-slot" onComplete={() => setIsGameLoaded(true)} />
+          <GameLoader 
+            backgroundImage="https://images.unsplash.com/photo-1598252571565-794637d7a2ee?q=80&w=800&auto=format&fit=crop" 
+            gameName="Tattoo Slot" 
+            onComplete={() => setIsGameLoaded(true)} 
+          />
         )}
       </AnimatePresence>
 
