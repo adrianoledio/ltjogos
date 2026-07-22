@@ -279,11 +279,6 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
-
-async function startServer() {
-  const PORT = 3000;
-
-  // API routes
   app.get("/api/users", async (req, res) => {
     try {
       const { data, error } = await supabase.from("users").select("*");
@@ -603,25 +598,27 @@ async function startServer() {
   // Mercado Pago Endpoints
   app.post("/api/payments/pix", async (req, res) => {
     try {
-      const { amount, userId, email, bonus } = req.body;
+      const { amount, userId, email, bonus, mpAccessToken: clientToken } = req.body;
       
-      let mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || "";
+      let mpAccessToken = (clientToken || "").trim() || process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || "";
       
-      try {
-        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
-        if (settingsData && settingsData.data) {
-          const settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
-          if (settings && settings.mpAccessToken) {
-            mpAccessToken = settings.mpAccessToken;
+      if (!mpAccessToken) {
+        try {
+          const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+          if (settingsData && settingsData.data) {
+            const settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+            if (settings && settings.mpAccessToken) {
+              mpAccessToken = settings.mpAccessToken.trim();
+            }
           }
+        } catch (e) {
+          console.warn("Não foi possível buscar configurações do Supabase:", e);
         }
-      } catch (e) {
-        console.warn("Não foi possível buscar configurações do Supabase:", e);
       }
       
       if (!mpAccessToken) {
         console.error("Mercado Pago Access Token não configurado.");
-        return res.status(400).json({ error: "Access Token do Mercado Pago não configurado. Adicione-o no painel Admin ou nas variáveis de ambiente." });
+        return res.status(400).json({ error: "Access Token do Mercado Pago não configurado. Adicione-o no painel Admin (Configurações > Gateway) ou nas variáveis de ambiente." });
       }
 
       const idempotencyKey = Math.random().toString(36).substring(2, 15);
@@ -648,7 +645,7 @@ async function startServer() {
       });
 
       const mpData = await mpResponse.json();
-      console.log("Resposta do Mercado Pago:", JSON.stringify(mpData));
+      console.log("Resposta do Mercado Pago:", mpResponse.status, JSON.stringify(mpData));
 
       if (!mpResponse.ok) {
         console.error("Erro no Mercado Pago:", mpData);
@@ -765,22 +762,24 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static("dist"));
-    app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+  async function startServer() {
+    const PORT = 3000;
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      app.use(express.static("dist"));
+      app.get('*', (req, res) => {
+        res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      });
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+  startServer();

@@ -128,79 +128,6 @@ export function Wallet() {
     return val * 0.5;
   };
 
-  const generatePixDirectly = async (val: number, bonusVal: number) => {
-    try {
-      const settings = await db.getSettings();
-      const mpToken = (settings.mpAccessToken || import.meta.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || '').trim();
-
-      if (!mpToken) {
-        toast.error('Token do Mercado Pago não encontrado. Acesse o Painel Admin > Configurações e digite o Access Token do Mercado Pago.');
-        return;
-      }
-
-      const idempotencyKey = Math.random().toString(36).substring(2, 15);
-      const payerEmail = user.email && user.email.includes('@') ? user.email : `${user.phone || 'usuario'}@ltjogos.com`;
-
-      const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${mpToken}`,
-          "X-Idempotency-Key": idempotencyKey
-        },
-        body: JSON.stringify({
-          transaction_amount: val,
-          description: "Depósito na Plataforma LT JOGOS",
-          payment_method_id: "pix",
-          payer: {
-            email: payerEmail,
-            first_name: "Usuario",
-            last_name: "LTJogos"
-          }
-        })
-      });
-
-      const mpData = await mpRes.json();
-
-      if (!mpRes.ok) {
-        const errorMsg = mpData.message || mpData.cause?.[0]?.description || mpData.error || 'Erro ao gerar PIX no Mercado Pago.';
-        toast.error('Erro no Mercado Pago: ' + errorMsg);
-        return;
-      }
-
-      const txId = 'tx_' + Math.random().toString(36).substring(2, 11);
-      const qrCode = mpData.point_of_interaction?.transaction_data?.qr_code;
-      const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64;
-
-      const newTx: Transaction = {
-        id: txId,
-        userId: user.id,
-        type: 'deposit',
-        amount: val,
-        status: 'pending',
-        date: new Date().toISOString(),
-        metadata: {
-          mpPaymentId: mpData.id,
-          qrCode,
-          qrCodeBase64,
-          bonus: bonusVal
-        }
-      };
-
-      await db.addTransaction(newTx);
-      
-      setQrCode(qrCode);
-      setQrCodeBase64(qrCodeBase64);
-      setActiveTxId(txId);
-      setShowQr(true);
-      setTransactions(await db.getTransactions());
-      toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
-    } catch (err: any) {
-      console.error("Direct Mercado Pago generation failed:", err);
-      toast.error('Erro ao gerar PIX diretamente. Verifique sua conexão.');
-    }
-  };
-
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
@@ -208,50 +135,43 @@ export function Wallet() {
       setIsGeneratingPix(true);
       const bonusVal = calculateBonus(amount);
       try {
-        let isSuccess = false;
+        const settings = await db.getSettings().catch(() => ({} as any));
+        const mpAccessToken = (settings?.mpAccessToken || '').trim();
+
+        const response = await fetch('/api/payments/pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: val,
+            bonus: bonusVal,
+            userId: user.id,
+            email: user.email || `${user.phone || 'usuario'}@ltjogos.com`,
+            mpAccessToken
+          })
+        });
+
+        const contentType = response.headers.get('content-type') || '';
         
-        try {
-          // Try calling the backend payment API first
-          const response = await fetch('/api/payments/pix', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount: val,
-              bonus: bonusVal,
-              userId: user.id,
-              email: user.email || `${user.phone}@ltjogos.com`
-            })
-          });
-
-          const contentType = response.headers.get('content-type') || '';
-          
-          if (contentType.includes('application/json')) {
-            const data = await response.json();
-            if (response.ok && data.success) {
-              setQrCode(data.qrCode);
-              setQrCodeBase64(data.qrCodeBase64);
-              setActiveTxId(data.transactionId);
-              setShowQr(true);
-              setTransactions(await db.getTransactions());
-              toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
-              isSuccess = true;
-            } else if (data.error) {
-              toast.error('Erro ao gerar PIX: ' + data.error);
-              isSuccess = true; // Prevent fallback if backend returned specific error
-            }
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          if (response.ok && data.success) {
+            setQrCode(data.qrCode);
+            setQrCodeBase64(data.qrCodeBase64);
+            setActiveTxId(data.transactionId);
+            setShowQr(true);
+            setTransactions(await db.getTransactions());
+            toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
+          } else {
+            const errorMsg = data.error || data.details?.message || data.details?.cause?.[0]?.description || 'Erro ao comunicar com o gateway do Mercado Pago.';
+            toast.error('Erro ao gerar PIX: ' + errorMsg);
           }
-        } catch (apiErr) {
-          console.warn("Backend API fetch failed, trying direct client fallback...", apiErr);
+        } else {
+          toast.error('Ocorreu uma falha no servidor ao processar o pagamento. Certifique-se de implantar com o servidor Node.');
         }
 
-        if (!isSuccess) {
-          // Fallback for static Vercel deployments: call Mercado Pago API directly
-          await generatePixDirectly(val, bonusVal);
-        }
-
-      } catch (error) {
-        console.error(error);
-        toast.error('Erro ao processar solicitação de PIX.');
+      } catch (error: any) {
+        console.error("Erro no depósito PIX:", error);
+        toast.error('Erro de conexão ao solicitar o PIX.');
       } finally {
         setIsGeneratingPix(false);
       }
