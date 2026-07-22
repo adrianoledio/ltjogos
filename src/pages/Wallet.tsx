@@ -147,9 +147,11 @@ export function Wallet() {
           })
         });
 
-        if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (contentType.includes('application/json')) {
           const data = await response.json();
-          if (data.success) {
+          if (response.ok && data.success) {
             setQrCode(data.qrCode);
             setQrCodeBase64(data.qrCodeBase64);
             setActiveTxId(data.transactionId);
@@ -157,13 +159,15 @@ export function Wallet() {
             setTransactions(await db.getTransactions());
             toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
             return;
+          } else {
+            const detailMsg = data.error || data.details?.message || data.details?.cause?.[0]?.description || 'Verifique as configurações do Mercado Pago.';
+            toast.error('Erro ao gerar PIX: ' + detailMsg);
+            return;
           }
+        } else {
+          console.error("Non-JSON response received from /api/payments/pix:", await response.text().catch(() => ''));
+          toast.error('Erro na resposta do servidor. Certifique-se de que o Access Token do Mercado Pago está configurado no Admin.');
         }
-        
-        // Handle API errors
-        const errorData = await response.json().catch(() => ({}));
-        console.error("Failed to generate real PIX:", errorData);
-        toast.error('Erro ao gerar PIX: ' + (errorData.error || 'Tente novamente mais tarde.'));
 
       } catch (error) {
         console.error(error);

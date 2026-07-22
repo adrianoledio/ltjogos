@@ -271,15 +271,16 @@ async function testAndSeedSupabase() {
 }
 testAndSeedSupabase();
 
+export const app = express();
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+
 async function startServer() {
-  const app = express();
-  app.use((req, res, next) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-    next();
-  });
-  app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
   const PORT = 3000;
 
   // API routes
@@ -604,47 +605,44 @@ async function startServer() {
     try {
       const { amount, userId, email, bonus } = req.body;
       
-      const { data: settingsData, error: settingsError } = await supabase.from("settings").select("data").eq("id", "global").single();
-      if (settingsError) throw settingsError;
-      const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
+      let mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || "";
       
-      if (!settings || !settings.mpAccessToken) {
-        console.error("Mercado Pago Access Token não configurado nas configurações globais.");
-        return res.status(400).json({ error: "Mercado Pago não configurado." });
+      try {
+        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+        if (settingsData && settingsData.data) {
+          const settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+          if (settings && settings.mpAccessToken) {
+            mpAccessToken = settings.mpAccessToken;
+          }
+        }
+      } catch (e) {
+        console.warn("Não foi possível buscar configurações do Supabase:", e);
+      }
+      
+      if (!mpAccessToken) {
+        console.error("Mercado Pago Access Token não configurado.");
+        return res.status(400).json({ error: "Access Token do Mercado Pago não configurado. Adicione-o no painel Admin ou nas variáveis de ambiente." });
       }
 
       const idempotencyKey = Math.random().toString(36).substring(2, 15);
+      const payerEmail = email && email.includes("@") ? email : "usuario@ltjogos.com";
       
       const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${settings.mpAccessToken}`,
+          "Authorization": `Bearer ${mpAccessToken.trim()}`,
           "X-Idempotency-Key": idempotencyKey
         },
         body: JSON.stringify({
-          transaction_amount: amount,
-          description: "Depósito na Plataforma",
+          transaction_amount: Number(amount),
+          description: "Depósito na Plataforma LT JOGOS",
           payment_method_id: "pix",
           notification_url: process.env.APP_URL ? `${process.env.APP_URL}/api/webhooks/mercadopago` : `https://${req.get('host')}/api/webhooks/mercadopago`,
           payer: {
-            email: email || "usuario@exemplo.com",
-            first_name: "Usuário",
-            last_name: "Plataforma",
-            identification: {
-              type: "CPF",
-              number: "00000000000"
-            }
-          },
-          additional_info: {
-            payer: {
-              first_name: "Usuário",
-              last_name: "Plataforma",
-              phone: {
-                area_code: "11",
-                number: "999999999"
-              }
-            }
+            email: payerEmail,
+            first_name: "Usuario",
+            last_name: "LTJogos"
           }
         })
       });
@@ -654,39 +652,44 @@ async function startServer() {
 
       if (!mpResponse.ok) {
         console.error("Erro no Mercado Pago:", mpData);
-        return res.status(400).json({ error: "Erro ao gerar PIX no Mercado Pago.", details: mpData });
+        const detail = mpData.message || mpData.cause?.[0]?.description || mpData.error || "Erro ao gerar PIX no Mercado Pago";
+        return res.status(400).json({ error: detail, details: mpData });
       }
 
       // Create pending transaction
       const txId = Math.random().toString(36).substring(2, 9);
       const metadata = {
         mpPaymentId: mpData.id,
-        qrCodeBase64: mpData.point_of_interaction.transaction_data.qr_code_base64,
-        qrCode: mpData.point_of_interaction.transaction_data.qr_code,
+        qrCodeBase64: mpData.point_of_interaction?.transaction_data?.qr_code_base64,
+        qrCode: mpData.point_of_interaction?.transaction_data?.qr_code,
         bonus: bonus || 0
       };
 
-      const { error: txError } = await supabase.from("transactions").insert({
-        id: txId,
-        userId,
-        type: "deposit",
-        amount,
-        status: "pending",
-        date: new Date().toISOString(),
-        metadata
-      });
-      if (txError) throw txError;
+      try {
+        await supabase.from("transactions").insert({
+          id: txId,
+          userId,
+          type: "deposit",
+          amount: Number(amount),
+          status: "pending",
+          date: new Date().toISOString(),
+          metadata
+        });
+      } catch (txErr) {
+        console.warn("Erro ao salvar transação pendente no Supabase:", txErr);
+      }
 
       res.json({
         success: true,
         transactionId: txId,
-        qrCodeBase64: metadata.qrCodeBase64,
-        qrCode: metadata.qrCode
+        mpPaymentId: mpData.id,
+        qrCode: mpData.point_of_interaction?.transaction_data?.qr_code,
+        qrCodeBase64: mpData.point_of_interaction?.transaction_data?.qr_code_base64
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro interno ao gerar PIX:", error);
-      res.status(500).json({ error: "Erro interno do servidor." });
+      res.status(500).json({ error: error.message || "Erro interno do servidor ao gerar PIX." });
     }
   });
 
