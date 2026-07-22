@@ -27,7 +27,9 @@ if (!supabaseUrl || !supabaseKey) {
   }
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const validServerUrl = (supabaseUrl && (supabaseUrl.startsWith("http://") || supabaseUrl.startsWith("https://"))) ? supabaseUrl : "https://placeholder.supabase.co";
+const validServerKey = supabaseKey || "placeholder-key";
+const supabase = createClient(validServerUrl, validServerKey);
 
 // Test and Seed Supabase connection on startup
 async function testAndSeedSupabase() {

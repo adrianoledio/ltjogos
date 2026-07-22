@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 const calaveraInkCover = '/images/calavera_ink_cover_1784495373476.jpg';
 
 export type Role = 'user' | 'admin' | 'partner';
@@ -285,8 +287,25 @@ class LocalDB {
         }
       }
     } catch (e) {
-      console.warn("Could not fetch users from API, using localStorage cache:", e);
+      console.warn("Could not fetch users from API, trying direct Supabase client fallback...", e);
     }
+
+    // Direct Supabase fallback (useful on static Vercel deployments)
+    try {
+      const { data, error } = await supabase.from('users').select('*');
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const formatted = data.map((u: any) => ({
+          ...u,
+          unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
+          referralCounted: !!u.referralCounted
+        }));
+        this.setStorageItem('lt_users', formatted);
+        return formatted;
+      }
+    } catch (e) {
+      console.warn("Could not fetch users from direct Supabase client:", e);
+    }
+
     return this.getStorageItem<User[]>('lt_users', []);
   }
 
@@ -306,7 +325,7 @@ class LocalDB {
     }
     this.setStorageItem('lt_users', users);
 
-    // Sync to API
+    // Sync to API or direct Supabase
     try {
       const res = await fetch('/api/users', {
         method: 'POST',
@@ -318,8 +337,33 @@ class LocalDB {
         throw new Error(errData.error || `HTTP error ${res.status}`);
       }
     } catch (e: any) {
-      console.warn("Could not sync user update to API:", e);
-      throw e;
+      console.warn("Could not sync user update to API, attempting direct Supabase upsert...", e);
+      try {
+        const { error } = await supabase.from('users').upsert({
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          password: updatedUser.password,
+          role: updatedUser.role,
+          balance: updatedUser.balance,
+          earnings: updatedUser.earnings,
+          createdAt: updatedUser.createdAt,
+          dailyPrizeTotal: updatedUser.dailyPrizeTotal,
+          lastPrizeDate: updatedUser.lastPrizeDate,
+          referrals: updatedUser.referrals || 0,
+          unlockFirstWithdrawal: updatedUser.unlockFirstWithdrawal ? true : false,
+          referralLink: updatedUser.referralLink || '',
+          withdrawalsCount: updatedUser.withdrawalsCount || 0,
+          referredBy: updatedUser.referredBy || null,
+          referralCounted: updatedUser.referralCounted ? true : false,
+          phone: updatedUser.phone || null
+        });
+        if (error) {
+          console.error("Direct Supabase user upsert error:", error);
+        }
+      } catch (subErr) {
+        console.error("Direct Supabase user upsert failed:", subErr);
+      }
     }
   }
 
@@ -335,8 +379,19 @@ class LocalDB {
         }
       }
     } catch (e) {
-      console.warn("Could not fetch transactions from API, using localStorage cache:", e);
+      console.warn("Could not fetch transactions from API, trying direct Supabase client fallback...", e);
     }
+
+    try {
+      const { data, error } = await supabase.from('transactions').select('*');
+      if (!error && Array.isArray(data)) {
+        this.setStorageItem('lt_transactions', data);
+        return data;
+      }
+    } catch (e) {
+      console.warn("Could not fetch transactions from direct Supabase client:", e);
+    }
+
     return this.getStorageItem<Transaction[]>('lt_transactions', []);
   }
 
@@ -352,7 +407,7 @@ class LocalDB {
     transactions.push(newTx);
     this.setStorageItem('lt_transactions', transactions);
 
-    // Sync to API
+    // Sync to API or direct Supabase
     try {
       await fetch('/api/transactions', {
         method: 'POST',
@@ -360,7 +415,12 @@ class LocalDB {
         body: JSON.stringify(newTx)
       });
     } catch (e) {
-      console.warn("Could not sync new transaction to API:", e);
+      console.warn("Could not sync new transaction to API, trying direct Supabase...", e);
+      try {
+        await supabase.from('transactions').upsert(newTx);
+      } catch (err) {
+        console.error("Direct Supabase transaction insert error:", err);
+      }
     }
 
     return newTx;
@@ -375,7 +435,7 @@ class LocalDB {
       this.setStorageItem('lt_transactions', transactions);
     }
 
-    // Sync to API
+    // Sync to API or direct Supabase
     try {
       await fetch('/api/transactions', {
         method: 'POST',
@@ -383,7 +443,12 @@ class LocalDB {
         body: JSON.stringify(tx)
       });
     } catch (e) {
-      console.warn("Could not sync transaction update to API:", e);
+      console.warn("Could not sync transaction update to API, trying direct Supabase...", e);
+      try {
+        await supabase.from('transactions').upsert(tx);
+      } catch (err) {
+        console.error("Direct Supabase transaction update error:", err);
+      }
     }
   }
 
@@ -399,8 +464,19 @@ class LocalDB {
         }
       }
     } catch (e) {
-      console.warn("Could not fetch games from API, using localStorage cache:", e);
+      console.warn("Could not fetch games from API, trying direct Supabase client fallback...", e);
     }
+
+    try {
+      const { data, error } = await supabase.from('games').select('*');
+      if (!error && Array.isArray(data) && data.length > 0) {
+        this.setStorageItem('lt_games', data);
+        return data.filter(g => g.category === 'slots' || g.category === 'roletas');
+      }
+    } catch (e) {
+      console.warn("Could not fetch games from direct Supabase client:", e);
+    }
+
     const games = this.getStorageItem<GameConfig[]>('lt_games', []);
     const list = games.length > 0 ? games : DEFAULT_GAMES;
     return list.filter(g => g.category === 'slots' || g.category === 'roletas');
