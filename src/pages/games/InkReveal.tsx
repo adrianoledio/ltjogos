@@ -26,6 +26,8 @@ import {
   Play 
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 // Tattoo symbols details for the scratch card
 interface TattooSymbol {
@@ -132,6 +134,7 @@ export function InkReveal() {
   const [winAmount, setWinAmount] = useState<number>(0);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showWinModal, setShowWinModal] = useState<boolean>(false);
+  const [showExitModal, setShowExitModal] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [isGameLoaded, setIsGameLoaded] = useState<boolean>(false);
   const [isScratchingAll, setIsScratchingAll] = useState<boolean>(false);
@@ -353,6 +356,11 @@ export function InkReveal() {
       }
       
       playSfx('win');
+      if (winAmount >= bet * 10) {
+        triggerBigWinConfetti();
+      } else {
+        triggerWinConfetti();
+      }
       setTimeout(() => {
         setShowWinModal(true);
       }, 600);
@@ -391,7 +399,7 @@ export function InkReveal() {
         
         {/* Navigation bar */}
         <div className="flex items-center justify-between py-2 border-b border-white/5">
-          <button onClick={() => navigate('/app')} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+          <button onClick={() => setShowExitModal(true)} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
             <ArrowLeft size={20} />
           </button>
           
@@ -690,6 +698,13 @@ export function InkReveal() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={gameState === 'purchased' || gameState === 'scratching'}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
 
     </div>
   );

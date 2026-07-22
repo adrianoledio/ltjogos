@@ -31,7 +31,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
         
         {/* Slowly spinning custom icon */}
         <img
-          src="https://i.postimg.cc/qMC9Q13X/icone.png"
+          src="https://i.postimg.cc/8Pxc7Xhn/icone2.png"
           alt="Carregando"
           className={`${iconSizes[size]} object-contain animate-[spin_5s_linear_infinite] drop-shadow-[0_0_12px_rgba(255,204,0,0.4)] relative z-10`}
         />

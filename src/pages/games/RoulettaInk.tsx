@@ -7,6 +7,8 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { Info, Coins, RefreshCw, X, ChevronLeft, Volume2, VolumeX, Flame, Sparkles, TrendingUp, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 interface WheelSlice {
   id: number;
@@ -45,6 +47,7 @@ export function RoulettaInk() {
 
   const [bet, setBet] = useState(1);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [winAmount, setWinAmount] = useState(0);
   const [showWinModal, setShowWinModal] = useState(false);
@@ -317,8 +320,10 @@ export function RoulettaInk() {
         // Show standard win or big win celebration
         if (actualPayout >= bet * 15) {
           setShowBigWin(true);
+          triggerBigWinConfetti();
         } else {
           setShowWinModal(true);
+          triggerWinConfetti();
         }
 
         // Prepare Double or Nothing gamble opportunity
@@ -419,8 +424,8 @@ export function RoulettaInk() {
       <div className="flex-none flex items-center justify-between px-4 py-2.5 bg-black/40 backdrop-blur-md border-b border-[#111e35] z-10">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate('/app')} 
-            className="w-10 h-10 bg-[#121f35] hover:bg-[#1b2f4e] active:scale-95 rounded-full flex items-center justify-center text-cyan-400 transition-all border border-cyan-500/20 shadow-md"
+            onClick={() => setShowExitModal(true)} 
+            className="w-10 h-10 bg-[#121f35] hover:bg-[#1b2f4e] active:scale-95 rounded-full flex items-center justify-center text-cyan-400 transition-all border border-cyan-500/20 shadow-md cursor-pointer"
             id="back-home-button"
           >
             <ChevronLeft size={24} />
@@ -1005,6 +1010,13 @@ export function RoulettaInk() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={isSpinning}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
 
     </div>
   );

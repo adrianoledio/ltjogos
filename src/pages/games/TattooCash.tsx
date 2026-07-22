@@ -7,6 +7,8 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { ArrowLeft, Info, Wallet, Coins, Zap, Minus, Plus, Play, RefreshCw, X } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 // Definition of types for the banknotes
 interface Banknote {
@@ -64,6 +66,7 @@ export function TattooCash() {
 
   // Spin active flags
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [spinLeft, setSpinLeft] = useState(false);
   const [spinCenter, setSpinCenter] = useState(false);
   const [spinRight, setSpinRight] = useState(false);
@@ -354,8 +357,10 @@ export function TattooCash() {
           // Win Celebration sizing
           if (currentWin >= bet * 20) {
             setShowBigWin(true);
+            triggerBigWinConfetti();
           } else {
             setShowWinModal(true);
+            triggerWinConfetti();
           }
         }
 
@@ -408,8 +413,8 @@ export function TattooCash() {
       <div className="flex-none flex items-center justify-between px-4 py-2.5 bg-black/60 backdrop-blur-md border-b border-[#0f2e46]">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate('/app')} 
-            className="w-10 h-10 bg-[#122b3d] hover:bg-[#1a3e56] active:scale-90 rounded-full flex items-center justify-center text-cyan-400/90 transition-all border border-cyan-500/20 shadow-md"
+            onClick={() => setShowExitModal(true)} 
+            className="w-10 h-10 bg-[#122b3d] hover:bg-[#1a3e56] active:scale-90 rounded-full flex items-center justify-center text-cyan-400/90 transition-all border border-cyan-500/20 shadow-md cursor-pointer"
             id="back-home-button"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
@@ -886,6 +891,13 @@ export function TattooCash() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={isSpinning || freeSpins > 0}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
 
     </div>
   );

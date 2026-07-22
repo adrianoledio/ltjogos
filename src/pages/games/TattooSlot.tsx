@@ -7,6 +7,8 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 // Symbols definitions
 const SYMBOLS_WEIGHTS = {
@@ -543,6 +545,7 @@ export function TattooSlot() {
 
   // Spinning Statuses
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [spinningCols, setSpinningCols] = useState<boolean[]>([false, false, false, false, false]);
 
   // Wins and Highlights
@@ -909,8 +912,10 @@ export function TattooSlot() {
       if (totalWin >= baseBet * 25) {
         setShowBigWin(true);
         setIsShaking(true);
+        triggerBigWinConfetti();
       } else {
         setShowWinCelebration(true);
+        triggerWinConfetti();
       }
 
       if (user) {
@@ -1008,7 +1013,7 @@ export function TattooSlot() {
             id="btn-lobby"
             onClick={() => {
               playSfx('click');
-              navigate('/app');
+              setShowExitModal(true);
             }}
             className="flex flex-col items-center justify-center bg-black/60 border border-white/10 hover:border-white/30 rounded-full w-11 h-11 cursor-pointer transition-all active:scale-95"
           >
@@ -1583,6 +1588,13 @@ export function TattooSlot() {
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={isSpinning || freeSpinsActive}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
 
     </div>
   );

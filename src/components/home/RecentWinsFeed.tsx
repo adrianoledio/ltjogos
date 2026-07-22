@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy } from 'lucide-react';
+import { Trophy, Sparkles } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
+import { triggerRecentGainConfetti } from '../../lib/confetti';
 
 const NAMES = ['Matheus', 'Karina', 'Felipe', 'Bruna', 'Thiago', 'Lucas', 'Ana', 'Pedro', 'Mariana', 'Gabriel'];
 const GAMES = ['Tattoo Slot', 'Ink Reveal', 'Mystic Ink', 'Rouletta Ink', 'Tattoo Cash', 'Calavera Ink', 'Yakuza Ink'];
 
 interface Win {
-  id: number;
+  id: string;
   user: string;
   game: string;
   amount: number;
@@ -21,7 +22,7 @@ export const RecentWinsFeed: React.FC = () => {
     // Initial batch delay simulation for smooth skeleton display
     const timer = setTimeout(() => {
       const initialWins = Array.from({ length: 5 }, (_, i) => ({
-        id: Date.now() - i,
+        id: `init-${i}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         user: NAMES[Math.floor(Math.random() * NAMES.length)],
         game: GAMES[Math.floor(Math.random() * GAMES.length)],
         amount: Math.random() * 500 + 50,
@@ -32,13 +33,19 @@ export const RecentWinsFeed: React.FC = () => {
 
     // Add new win every 3 seconds
     const interval = setInterval(() => {
+      const amount = Math.random() * 500 + 50;
       const newWin: Win = {
-        id: Date.now(),
+        id: `win-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         user: NAMES[Math.floor(Math.random() * NAMES.length)],
         game: GAMES[Math.floor(Math.random() * GAMES.length)],
-        amount: Math.random() * 500 + 50,
+        amount,
       };
       setWins((prev) => [newWin, ...prev.slice(0, 9)]);
+
+      // Trigger subtle confetti burst if it's a high win (> R$ 350)
+      if (amount > 350) {
+        triggerRecentGainConfetti(0.5, 0.3);
+      }
     }, 3000);
 
     return () => {
@@ -74,18 +81,27 @@ export const RecentWinsFeed: React.FC = () => {
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5"
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = (rect.left + rect.width / 2) / window.innerWidth;
+                    const y = (rect.top + rect.height / 2) / window.innerHeight;
+                    triggerRecentGainConfetti(x, y);
+                  }}
+                  className="flex items-center justify-between p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 active:scale-98 transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-brand-primary/20 flex items-center justify-center text-[8px] font-black text-brand-primary">
+                    <div className="w-6 h-6 rounded-full bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-[8px] font-black text-brand-primary group-hover:scale-110 transition-transform">
                       {win.user.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-white leading-tight">{win.user}</p>
+                      <p className="text-[10px] font-bold text-white leading-tight flex items-center gap-1">
+                        {win.user}
+                        {win.amount > 300 && <Sparkles size={10} className="text-amber-400 animate-pulse" />}
+                      </p>
                       <p className="text-[8px] text-white/40">{win.game}</p>
                     </div>
                   </div>
-                  <p className="font-mono font-black text-emerald-400 text-[10px]">
+                  <p className="font-mono font-black text-emerald-400 text-[10px] group-hover:text-emerald-300">
                     + R$ {win.amount.toFixed(2)}
                   </p>
                 </motion.div>

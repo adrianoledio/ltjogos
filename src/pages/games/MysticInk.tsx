@@ -7,6 +7,8 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { ArrowLeft, Info, Wallet, Coins, Zap, Minus, Plus, Play, RefreshCw } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 const SYMBOLS_WEIGHTS = {
   '9': 25,
@@ -501,6 +503,7 @@ export function MysticInk() {
   });
   const [topMultipliers, setTopMultipliers] = useState<number[]>([2, 3, 5, 2, 4]);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [lockedCols, setLockedCols] = useState<boolean[]>([true, true, true, true, true]);
   const [lockedMults, setLockedMults] = useState<boolean[]>([true, true, true, true, true]);
   const [winAmount, setWinAmount] = useState(0);
@@ -770,8 +773,10 @@ export function MysticInk() {
                 if (totalWin >= bet * 20) {
                   setShowBigWin(true);
                   setIsShaking(true);
+                  triggerBigWinConfetti();
                 } else {
                   setShowWinModal(true);
+                  triggerWinConfetti();
                 }
 
                 if (user) {
@@ -886,15 +891,15 @@ export function MysticInk() {
           <div className="flex items-center gap-3">
             {isWildTattoo ? (
               <button 
-                onClick={() => navigate('/app')} 
-                className="w-10 h-10 bg-[#3a3536] hover:bg-[#4a4546] active:scale-90 rounded-full flex items-center justify-center text-white/80 transition-all border border-white/10"
+                onClick={() => setShowExitModal(true)} 
+                className="w-10 h-10 bg-[#3a3536] hover:bg-[#4a4546] active:scale-90 rounded-full flex items-center justify-center text-white/80 transition-all border border-white/10 cursor-pointer"
               >
                 <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
                   <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
                 </svg>
               </button>
             ) : (
-              <button onClick={() => navigate('/app')} className="p-2 glass-card rounded-xl text-white/70 hover:text-white transition-all">
+              <button onClick={() => setShowExitModal(true)} className="p-2 glass-card rounded-xl text-white/70 hover:text-white transition-all cursor-pointer">
                 <ArrowLeft size={20} />
               </button>
             )}
@@ -1523,6 +1528,13 @@ export function MysticInk() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={isSpinning || freeSpins > 0}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
     </div>
     </>
   );

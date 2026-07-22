@@ -7,6 +7,8 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star, ThumbsUp } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 const coverImg = '/images/calavera_ink_cover_1784495373476.jpg';
 
 // Payout weights and definitions
@@ -454,6 +456,7 @@ export function CalaveraInk() {
   // Multiplier state
   const [multiplier, setMultiplier] = useState(1);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [spinningCols, setSpinningCols] = useState<boolean[]>([false, false, false, false, false]);
 
   // Wins tracking
@@ -852,8 +855,10 @@ export function CalaveraInk() {
         if (winAmount >= baseBet * 20) {
           setShowBigWin(true);
           setIsShaking(true);
+          triggerBigWinConfetti();
         } else {
           setShowWinCelebration(true);
+          triggerWinConfetti();
         }
       }
 
@@ -876,7 +881,7 @@ export function CalaveraInk() {
         
         {/* Top Header Row */}
         <div className="flex items-center justify-between py-2 border-b border-white/5">
-          <button onClick={() => navigate('/app')} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+          <button onClick={() => setShowExitModal(true)} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer">
             <ArrowLeft size={20} />
           </button>
           
@@ -1195,6 +1200,13 @@ export function CalaveraInk() {
         {showWinCelebration && <WinCelebrationIndicator amount={winAmount} />}
         {showBigWin && <BigWinScreen amount={winAmount} onClose={() => { setShowBigWin(false); setIsShaking(false); }} />}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={isSpinning || freeSpinsActive}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
     </div>
   );
 }

@@ -50,7 +50,7 @@ export const GameLoader: React.FC<GameLoaderProps> = ({ onComplete, backgroundIm
         <div className="mb-6 relative flex items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-brand-primary/20 blur-xl animate-pulse" />
           <img
-            src="https://i.postimg.cc/qMC9Q13X/icone.png"
+            src="https://i.postimg.cc/8Pxc7Xhn/icone2.png"
             alt="Carregando"
             className="w-16 h-16 object-contain animate-[spin_5s_linear_infinite] drop-shadow-[0_0_12px_rgba(255,204,0,0.4)] relative z-10"
           />

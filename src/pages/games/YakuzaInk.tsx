@@ -7,6 +7,8 @@ import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
 import { ArrowLeft, Info, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Flame } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
+import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 // Symbol structures
 interface SymbolConfig {
@@ -254,6 +256,7 @@ export function YakuzaInk() {
 
   // Slot States
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [isTurbo, setIsTurbo] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
 
@@ -629,6 +632,11 @@ export function YakuzaInk() {
       // Save win to server
       if (finalWinSum > 0) {
         playSfx('win');
+        if (finalWinSum >= totalBet * 15) {
+          triggerBigWinConfetti();
+        } else {
+          triggerWinConfetti();
+        }
         await updateBalance(finalWinSum, 'win', 'yakuza-ink', {
           tigerWin: calculatedTigerWin,
           dragonWin: calculatedDragonWin,
@@ -666,8 +674,8 @@ export function YakuzaInk() {
       <header className="p-3 bg-black/40 border-b border-white/5 backdrop-blur-md flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/app')}
-            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all border border-white/10 text-white/70 hover:text-white"
+            onClick={() => setShowExitModal(true)}
+            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all border border-white/10 text-white/70 hover:text-white cursor-pointer"
           >
             <ArrowLeft size={16} />
           </button>
@@ -1118,6 +1126,13 @@ export function YakuzaInk() {
           />
         )}
       </AnimatePresence>
+
+      <ConfirmExitModal
+        isOpen={showExitModal}
+        isSpinning={isSpinning}
+        onConfirm={() => navigate('/app')}
+        onCancel={() => setShowExitModal(false)}
+      />
     </div>
   );
 }
