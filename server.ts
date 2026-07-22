@@ -624,6 +624,28 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
       const idempotencyKey = Math.random().toString(36).substring(2, 15);
       const payerEmail = email && email.includes("@") ? email : "usuario@ltjogos.com";
       
+      const host = req.get('host') || '';
+      let notification_url: string | undefined = undefined;
+      if (process.env.APP_URL && process.env.APP_URL.startsWith("https://") && !process.env.APP_URL.includes("localhost")) {
+        notification_url = `${process.env.APP_URL}/api/webhooks/mercadopago`;
+      } else if (host && host.includes(".") && !host.includes("localhost") && !host.includes("127.0.0.1") && !host.includes("run.app")) {
+        notification_url = `https://${host}/api/webhooks/mercadopago`;
+      }
+
+      const mpBody: any = {
+        transaction_amount: Number(amount),
+        description: "Depósito na Plataforma LT JOGOS",
+        payment_method_id: "pix",
+        payer: {
+          email: payerEmail,
+          first_name: "Usuario",
+          last_name: "LTJogos"
+        }
+      };
+      if (notification_url) {
+        mpBody.notification_url = notification_url;
+      }
+      
       const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
         method: "POST",
         headers: {
@@ -631,17 +653,7 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
           "Authorization": `Bearer ${mpAccessToken.trim()}`,
           "X-Idempotency-Key": idempotencyKey
         },
-        body: JSON.stringify({
-          transaction_amount: Number(amount),
-          description: "Depósito na Plataforma LT JOGOS",
-          payment_method_id: "pix",
-          notification_url: process.env.APP_URL ? `${process.env.APP_URL}/api/webhooks/mercadopago` : `https://${req.get('host')}/api/webhooks/mercadopago`,
-          payer: {
-            email: payerEmail,
-            first_name: "Usuario",
-            last_name: "LTJogos"
-          }
-        })
+        body: JSON.stringify(mpBody)
       });
 
       const mpData = await mpResponse.json();

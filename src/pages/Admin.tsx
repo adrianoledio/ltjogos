@@ -1617,7 +1617,7 @@ export function Admin() {
                     </div>
                     <p className={`text-[9px] font-bold leading-relaxed ${theme === 'dark' ? 'text-blue-200/60' : 'text-blue-800'}`}>
                       Webhook no Mercado Pago: <br />
-                      <code className="bg-black/20 px-1 rounded select-all">https://ais-pre-jkvbggvrm3bge55q5ui7qy-28795802681.us-east1.run.app/api/webhooks/mercadopago</code>
+                      <code className="bg-black/20 px-1 rounded select-all">{`${window.location.origin}/api/webhooks/mercadopago`}</code>
                     </p>
                   </div>
                 </div>

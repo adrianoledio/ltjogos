@@ -138,35 +138,103 @@ export function Wallet() {
         const settings = await db.getSettings().catch(() => ({} as any));
         const mpAccessToken = (settings?.mpAccessToken || '').trim();
 
-        const response = await fetch('/api/payments/pix', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: val,
-            bonus: bonusVal,
-            userId: user.id,
-            email: user.email || `${user.phone || 'usuario'}@ltjogos.com`,
-            mpAccessToken
-          })
-        });
+        let isSuccess = false;
 
-        const contentType = response.headers.get('content-type') || '';
-        
-        if (contentType.includes('application/json')) {
-          const data = await response.json();
-          if (response.ok && data.success) {
-            setQrCode(data.qrCode);
-            setQrCodeBase64(data.qrCodeBase64);
-            setActiveTxId(data.transactionId);
-            setShowQr(true);
-            setTransactions(await db.getTransactions());
-            toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
-          } else {
-            const errorMsg = data.error || data.details?.message || data.details?.cause?.[0]?.description || 'Erro ao comunicar com o gateway do Mercado Pago.';
-            toast.error('Erro ao gerar PIX: ' + errorMsg);
+        try {
+          const response = await fetch('/api/payments/pix', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: val,
+              bonus: bonusVal,
+              userId: user.id,
+              email: user.email || `${user.phone || 'usuario'}@ltjogos.com`,
+              mpAccessToken
+            })
+          });
+
+          const contentType = response.headers.get('content-type') || '';
+          
+          if (contentType.includes('application/json')) {
+            const data = await response.json();
+            if (response.ok && data.success) {
+              setQrCode(data.qrCode);
+              setQrCodeBase64(data.qrCodeBase64);
+              setActiveTxId(data.transactionId);
+              setShowQr(true);
+              setTransactions(await db.getTransactions());
+              toast.success('PIX gerado com sucesso! Escaneie ou copie o código.');
+              isSuccess = true;
+            } else if (data.error) {
+              toast.error('Erro ao gerar PIX: ' + data.error);
+              isSuccess = true;
+            }
           }
-        } else {
-          toast.error('Ocorreu uma falha no servidor ao processar o pagamento. Certifique-se de implantar com o servidor Node.');
+        } catch (apiErr) {
+          console.warn("Backend API not reachable, attempting direct fallback...", apiErr);
+        }
+
+        if (!isSuccess && mpAccessToken) {
+          try {
+            const mpRes = await fetch("https://api.mercadopago.com/v1/payments", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${mpAccessToken}`,
+                "X-Idempotency-Key": Math.random().toString(36).substring(2, 15)
+              },
+              body: JSON.stringify({
+                transaction_amount: val,
+                description: "Depósito na Plataforma LT JOGOS",
+                payment_method_id: "pix",
+                payer: {
+                  email: user.email && user.email.includes('@') ? user.email : "usuario@ltjogos.com",
+                  first_name: "Usuario",
+                  last_name: "LTJogos"
+                }
+              })
+            });
+
+            const mpData = await mpRes.json();
+            if (mpRes.ok) {
+              const qrCode = mpData.point_of_interaction?.transaction_data?.qr_code;
+              const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64;
+              const txId = 'tx_' + Math.random().toString(36).substring(2, 11);
+
+              await db.addTransaction({
+                userId: user.id,
+                type: 'deposit',
+                amount: val,
+                status: 'pending',
+                metadata: {
+                  mpPaymentId: mpData.id,
+                  qrCode,
+                  qrCodeBase64,
+                  bonus: bonusVal
+                }
+              });
+
+              setQrCode(qrCode);
+              setQrCodeBase64(qrCodeBase64);
+              setActiveTxId(txId);
+              setShowQr(true);
+              setTransactions(await db.getTransactions());
+              toast.success('PIX gerado com sucesso!');
+              isSuccess = true;
+            } else {
+              const errorMsg = mpData.message || mpData.cause?.[0]?.description || mpData.error || 'Erro ao gerar PIX no Mercado Pago.';
+              toast.error('Erro ao gerar PIX: ' + errorMsg);
+              isSuccess = true;
+            }
+          } catch (directErr: any) {
+            console.error("Direct fetch failed:", directErr);
+          }
+        }
+
+        if (!isSuccess && !mpAccessToken) {
+          toast.error('Access Token do Mercado Pago não encontrado. Acesse o Painel Admin > Configurações e salve seu Token do Mercado Pago.');
+        } else if (!isSuccess) {
+          toast.error('Não foi possível gerar o PIX. Verifique seu Access Token do Mercado Pago nas Configurações.');
         }
 
       } catch (error: any) {
