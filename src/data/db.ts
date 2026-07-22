@@ -531,6 +531,19 @@ class LocalDB {
     }
 
     if (!settingsData) {
+      try {
+        const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
+        if (!error && data && data.data) {
+          const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+          settingsData = parsed;
+          this.setStorageItem('lt_settings', parsed);
+        }
+      } catch (e) {
+        console.warn("Could not fetch settings from Supabase client:", e);
+      }
+    }
+
+    if (!settingsData) {
       settingsData = this.getStorageItem<SystemSettings | null>('lt_settings', null);
     }
 
@@ -571,6 +584,17 @@ class LocalDB {
       });
     } catch (e) {
       console.warn("Could not sync settings to API:", e);
+    }
+
+    // Sync to Supabase
+    try {
+      await supabase.from("settings").upsert({
+        id: "global",
+        data: settings,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Could not sync settings to Supabase client:", e);
     }
   }
 
