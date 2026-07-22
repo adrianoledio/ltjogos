@@ -23,24 +23,36 @@ const steps: Step[] = [
   },
 ];
 
-const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge }) => (
-  <div className="relative group">
-    <Link
-      to={`/app/games/${game.id}`}
-      className={`block ${aspect} relative overflow-hidden rounded-xl border border-white/10 group-hover:border-brand-primary/40 transition-all duration-300 shadow-xl z-10 bg-surface-dark`}
-    >
-      {/* Cover Image - completely clean with no zoom, no overlays, and no text truncation */}
-      <div className="absolute inset-0">
-        <img
-          src={game.thumbnail}
-          alt={game.name}
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    </Link>
-  </div>
-);
+const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge }) => {
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <div className="relative group">
+      <Link
+        to={`/app/games/${game.id}`}
+        className={`block ${aspect} relative overflow-hidden rounded-xl border border-white/10 group-hover:border-brand-primary/40 transition-all duration-300 shadow-xl z-10 bg-surface-dark`}
+      >
+        {/* Cover Image - completely clean with no zoom, no overlays, and fallback for broken URLs */}
+        <div className="absolute inset-0 bg-surface-card flex items-center justify-center">
+          {game.thumbnail && !hasError ? (
+            <img
+              src={game.thumbnail}
+              alt={game.name}
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+              onError={() => setHasError(true)}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-surface-card to-surface-dark w-full h-full">
+              <span className="text-3xl mb-1">🎮</span>
+              <span className="text-xs font-black text-white/90 truncate max-w-[90%]">{game.name}</span>
+            </div>
+          )}
+        </div>
+      </Link>
+    </div>
+  );
+};
 
 export function Home() {
   const [games, setGames] = useState<GameConfig[]>([]);

@@ -28,6 +28,7 @@ const FALLBACK_SLIDES = [
 export function HeroCarousel() {
   const [activeGames, setActiveGames] = useState<GameConfig[]>([]);
   const [current, setCurrent] = useState(0);
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const loadGames = async () => {
@@ -113,12 +114,19 @@ export function HeroCarousel() {
           className="absolute inset-0"
         >
           <Link to={currentSlide.link} className="absolute inset-0 block cursor-pointer">
-            <img
-              src={currentSlide.image}
-              alt={currentSlide.title}
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+            {!imgErrors[currentSlide.id] && currentSlide.image ? (
+              <img
+                src={currentSlide.image}
+                alt={currentSlide.title}
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+                onError={() => setImgErrors(prev => ({ ...prev, [currentSlide.id]: true }))}
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-zinc-900 via-purple-950 to-black flex items-center justify-center p-6 text-center">
+                <span className="text-4xl">🎰</span>
+              </div>
+            )}
             <div className={`absolute inset-0 bg-gradient-to-r ${currentSlide.color} opacity-60 mix-blend-multiply`} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent" />
             
