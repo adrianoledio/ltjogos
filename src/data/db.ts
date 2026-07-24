@@ -80,6 +80,12 @@ export interface SystemSettings {
   gamePrizes: GamePrizeConfig[];
   referralsForFirstWithdrawal: number;
   mpAccessToken?: string;
+  resendApiKey?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  emailFrom?: string;
   minPrize?: number;
   maxPrize?: number;
   prizeTiers?: Array<{ min: number; max: number; weight: number }>;

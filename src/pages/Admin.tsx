@@ -157,6 +157,24 @@ export function Admin() {
     
     // Update transaction status
     await db.updateTransaction({ ...tx, status: 'completed' });
+
+    // Trigger email notification to lediotattoo@proton.me
+    try {
+      await fetch('/api/notifications/deposit-approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: tx.id,
+          amount: tx.amount,
+          bonus,
+          userPhone: targetUser.phone,
+          userName: targetUser.name,
+          userEmail: targetUser.email
+        })
+      });
+    } catch (err) {
+      console.warn("Could not notify deposit email:", err);
+    }
     
     setTransactions(await db.getTransactions());
     setUsers(await db.getUsers());
@@ -1619,6 +1637,28 @@ export function Admin() {
                       Webhook no Mercado Pago: <br />
                       <code className="bg-black/20 px-1 rounded select-all">{`${window.location.origin}/api/webhooks/mercadopago`}</code>
                     </p>
+                  </div>
+                </div>
+
+                <div className={`p-3 rounded-xl border space-y-2 ${theme === 'dark' ? 'bg-white/[0.02] border-white/5' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <p className={`text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`}>Notificações de Depósito Aprovado</p>
+                    <span className="text-[7px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Ativo</span>
+                  </div>
+                  <p className={`text-[8px] font-medium ${theme === 'dark' ? 'text-white/50' : 'text-gray-600'}`}>
+                    Destino: <strong className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>lediotattoo@proton.me</strong> (Envia valor e telefone a cada depósito aprovado)
+                  </p>
+                  <div className="space-y-1">
+                    <label className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Resend API Key (Opcional)</label>
+                    <input
+                      type="password"
+                      value={settings.resendApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
+                      placeholder="re_..."
+                      className={`w-full rounded-lg px-2 py-1.5 text-[10px] font-black transition-all outline-none border ${
+                        theme === 'dark' ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
+                      }`}
+                    />
                   </div>
                 </div>
               </div>

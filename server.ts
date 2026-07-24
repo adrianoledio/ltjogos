@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
+import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
 
 // Supabase Configuration
 let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
@@ -702,74 +703,121 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
     }
   });
 
-  app.post("/api/webhooks/mercadopago", async (req, res) => {
+  app.all("/api/webhooks/mercadopago", async (req, res) => {
     try {
-      const { type, data } = req.body;
-      
-      // We only care about payment updates
-      if (type === "payment" && data && data.id) {
-        const paymentId = data.id;
-        
-        const { data: settingsData, error: settingsError } = await supabase.from("settings").select("data").eq("id", "global").single();
-        if (settingsError) throw settingsError;
-        const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
-        
-        if (!settings || !settings.mpAccessToken) {
-          return res.status(400).send("MP not configured");
-        }
+      const body = req.body || {};
+      const query = req.query || {};
 
-        // Fetch payment details from MP
-        const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-          headers: {
-            "Authorization": `Bearer ${settings.mpAccessToken}`
-          }
-        });
+      const paymentId = body?.data?.id || body?.id || query?.['data.id'] || query?.id;
 
-        const mpData = await mpResponse.json();
-
-        if (mpData.status === "approved") {
-          // Find the transaction with this payment ID
-          const { data: transactions, error: txsError } = await supabase.from("transactions").select("*").eq("status", "pending").eq("type", "deposit");
-          if (txsError) throw txsError;
+      if (paymentId) {
+        try {
+          const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+          const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
           
-          for (const tx of transactions) {
-            const metadata = tx.metadata ? (typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata) : null;
-            if (metadata && metadata.mpPaymentId === paymentId) {
-              // Mark as completed
-              await supabase.from("transactions").update({ status: 'completed' }).eq("id", tx.id);
-              
-              // Update user balance
-              const { data: user, error: userError } = await supabase.from("users").select("balance, referredBy, referralCounted").eq("id", tx.userId).single();
-              if (userError) throw userError;
+          const mpAccessToken = settings?.mpAccessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN;
 
-              const bonus = metadata?.bonus || 0;
-              await supabase.from("users").update({ balance: (user.balance || 0) + tx.amount + bonus }).eq("id", tx.userId);
-              
-              // Check for referral bonus on first deposit
-              if (user.referredBy && !user.referralCounted) {
-                const { data: referrer, error: referrerError } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).single();
-                if (!referrerError && referrer) {
-                  const newReferrals = (referrer.referrals || 0) + 1;
-                  let unlockFirstWithdrawal = referrer.unlockFirstWithdrawal;
-                  if (newReferrals >= (settings.referralsForFirstWithdrawal || 3)) {
-                    unlockFirstWithdrawal = true;
+          if (mpAccessToken) {
+            const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+              headers: {
+                "Authorization": `Bearer ${mpAccessToken.trim()}`
+              }
+            });
+
+            if (mpResponse.ok) {
+              const mpData = await mpResponse.json();
+
+              if (mpData && mpData.status === "approved") {
+                const { data: transactions } = await supabase.from("transactions").select("*").eq("status", "pending").eq("type", "deposit");
+                
+                if (transactions) {
+                  for (const tx of transactions) {
+                    const metadata = tx.metadata ? (typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata) : null;
+                    if (metadata && (String(metadata.mpPaymentId) === String(paymentId))) {
+                      await supabase.from("transactions").update({ status: 'completed' }).eq("id", tx.id);
+                      
+                      const { data: user } = await supabase.from("users").select("balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).single();
+                      if (user) {
+                        const bonus = metadata?.bonus || 0;
+                        await supabase.from("users").update({ balance: (user.balance || 0) + tx.amount + bonus }).eq("id", tx.userId);
+                        
+                        if (user.referredBy && !user.referralCounted) {
+                          const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).single();
+                          if (referrer) {
+                            const newReferrals = (referrer.referrals || 0) + 1;
+                            let unlockFirstWithdrawal = referrer.unlockFirstWithdrawal;
+                            if (newReferrals >= (settings?.referralsForFirstWithdrawal || 3)) {
+                              unlockFirstWithdrawal = true;
+                            }
+                            await supabase.from("users").update({ referrals: newReferrals, unlockFirstWithdrawal }).eq("id", referrer.id);
+                            await supabase.from("users").update({ referralCounted: true }).eq("id", tx.userId);
+                          }
+                        }
+
+                        // Send deposit email notification to lediotattoo@proton.me
+                        try {
+                          await sendDepositNotificationEmail({
+                            amount: tx.amount,
+                            bonus,
+                            userPhone: user.phone,
+                            userName: user.name,
+                            userEmail: user.email,
+                            transactionId: tx.id,
+                            settings
+                          });
+                        } catch (emailErr) {
+                          console.warn("Error sending deposit notification email in server.ts:", emailErr);
+                        }
+                      }
+
+                      console.log(`Payment ${paymentId} approved and processed for user ${tx.userId}`);
+                      break;
+                    }
                   }
-                  await supabase.from("users").update({ referrals: newReferrals, unlockFirstWithdrawal }).eq("id", referrer.id);
-                  await supabase.from("users").update({ referralCounted: true }).eq("id", tx.userId);
                 }
               }
-
-              console.log(`Payment ${paymentId} approved and processed for user ${tx.userId}`);
-              break;
             }
           }
+        } catch (innerErr) {
+          console.warn("Webhook inner error handled safely:", innerErr);
         }
       }
       
-      res.status(200).send("OK");
+      return res.status(200).send("OK");
     } catch (error) {
-      console.error("Webhook error:", error);
-      res.status(500).send("Error");
+      console.error("Webhook error caught safely:", error);
+      return res.status(200).send("OK");
+    }
+  });
+
+  app.post("/api/notifications/deposit-approved", async (req, res) => {
+    try {
+      const { transactionId, amount, userPhone, userName, userEmail, bonus } = req.body || {};
+
+      let settings = null;
+      try {
+        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+        if (settingsData && settingsData.data) {
+          settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+        }
+      } catch (e) {
+        console.warn("Could not load settings in notification route:", e);
+      }
+
+      const sent = await sendDepositNotificationEmail({
+        amount: Number(amount) || 0,
+        bonus: Number(bonus) || 0,
+        userPhone,
+        userName,
+        userEmail,
+        transactionId,
+        settings
+      });
+
+      return res.status(200).json({ success: true, sent });
+    } catch (err: any) {
+      console.error("Error in /api/notifications/deposit-approved:", err);
+      return res.status(500).json({ error: err?.message || "Error sending email" });
     }
   });
 
