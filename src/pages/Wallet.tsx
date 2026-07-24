@@ -94,22 +94,57 @@ export function Wallet() {
   // Poll to check if transaction has completed
   useEffect(() => {
     let intervalId: any;
-    if (showQr && user && activeTxId) {
-      intervalId = setInterval(async () => {
+
+    const checkPayment = async () => {
+      if (!user) return;
+      try {
+        // 1. Query server status check API (queries Mercado Pago directly if pending)
+        const statusRes = await fetch(`/api/payments/check-status?userId=${user.id}${activeTxId ? `&txId=${activeTxId}` : ''}`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.approved) {
+            toast.success('Depósito via PIX aprovado com sucesso! Saldo creditado.');
+            setShowQr(false);
+            setActiveTxId(null);
+            const updatedTxs = await db.getTransactions();
+            setTransactions(updatedTxs.filter(t => t.userId === user.id));
+            if (refreshUser) {
+              await refreshUser();
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Status check failed:", err);
+      }
+
+      // 2. Fallback check local transactions list
+      try {
         const txs = await db.getTransactions();
-        const currentTx = txs.find(t => t.id === activeTxId);
-        if (currentTx && currentTx.status === 'completed') {
-          toast.success('Depósito via PIX aprovado com sucesso!');
+        const userTxs = txs.filter(t => t.userId === user.id);
+        const currentTx = activeTxId ? userTxs.find(t => t.id === activeTxId) : null;
+        if (currentTx && currentTx.status === 'completed' && showQr) {
+          toast.success('Depósito via PIX aprovado com sucesso! Saldo creditado.');
           setShowQr(false);
           setActiveTxId(null);
-          setTransactions(txs);
+          setTransactions(userTxs);
           if (refreshUser) {
             await refreshUser();
           }
-          clearInterval(intervalId);
         }
-      }, 4000); // Check every 4 seconds
+      } catch (e) {
+        console.warn("Local tx search error:", e);
+      }
+    };
+
+    if (user) {
+      checkPayment();
     }
+
+    if (showQr && user) {
+      intervalId = setInterval(checkPayment, 3000); // Check every 3 seconds
+    }
+
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
@@ -199,9 +234,8 @@ export function Wallet() {
             if (mpRes.ok) {
               const qrCode = mpData.point_of_interaction?.transaction_data?.qr_code;
               const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64;
-              const txId = 'tx_' + Math.random().toString(36).substring(2, 11);
 
-              await db.addTransaction({
+              const newTx = await db.addTransaction({
                 userId: user.id,
                 type: 'deposit',
                 amount: val,
@@ -216,7 +250,7 @@ export function Wallet() {
 
               setQrCode(qrCode);
               setQrCodeBase64(qrCodeBase64);
-              setActiveTxId(txId);
+              setActiveTxId(newTx.id);
               setShowQr(true);
               setTransactions(await db.getTransactions());
               toast.success('PIX gerado com sucesso!');

@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
+import { verifyAndApprovePayment } from "./api/payments/check-status.js";
 
 // Supabase Configuration
 let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
@@ -818,6 +819,20 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
     } catch (err: any) {
       console.error("Error in /api/notifications/deposit-approved:", err);
       return res.status(500).json({ error: err?.message || "Error sending email" });
+    }
+  });
+
+  app.all("/api/payments/check-status", async (req, res) => {
+    try {
+      const paymentId = req.query?.paymentId || req.body?.paymentId;
+      const txId = req.query?.txId || req.body?.txId;
+      const userId = req.query?.userId || req.body?.userId;
+
+      const result = await verifyAndApprovePayment(paymentId, txId, userId);
+      return res.status(200).json(result);
+    } catch (err: any) {
+      console.error("Error in /api/payments/check-status:", err);
+      return res.status(500).json({ error: err?.message || "Error checking payment status" });
     }
   });
 
