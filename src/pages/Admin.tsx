@@ -49,17 +49,105 @@ export function Admin() {
   const syncPayments = async () => {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/payments/sync');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.approvedCount > 0) {
-          toast.success(`${data.approvedCount} depósito(s) aprovado(s) automaticamente via Mercado Pago!`);
+      let approvedCount = 0;
+      let apiSuccess = false;
+
+      // 1. Attempt API sync first
+      try {
+        const res = await fetch('/api/payments/sync');
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.approvedCount === 'number') {
+            apiSuccess = true;
+            approvedCount = data.approvedCount;
+          }
         }
-        setTransactions(await db.getTransactions());
-        setUsers(await db.getUsers());
+      } catch (apiErr) {
+        console.warn("API sync call failed, using client fallback:", apiErr);
+      }
+
+      // 2. Client-side fallback if API didn't approve anything or failed
+      if (!apiSuccess || approvedCount === 0) {
+        const currentSettings = settings.mpAccessToken ? settings : await db.getSettings();
+        const token = currentSettings?.mpAccessToken?.trim();
+
+        if (token) {
+          try {
+            const mpSearchRes = await fetch("https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&limit=50", {
+              headers: { "Authorization": `Bearer ${token}` }
+            });
+
+            if (mpSearchRes.ok) {
+              const searchData = await mpSearchRes.json();
+              const mpApproved = (searchData.results || []).filter((p: any) => p.status === "approved");
+
+              const allTxs = await db.getTransactions();
+              const pendingDeposits = allTxs.filter(t => t.type === 'deposit' && t.status === 'pending');
+
+              for (const tx of pendingDeposits) {
+                const metadata = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : (tx.metadata || {});
+                const mpPaymentId = metadata?.mpPaymentId;
+
+                let isApproved = false;
+
+                if (mpPaymentId) {
+                  const directMatch = mpApproved.find((p: any) => String(p.id) === String(mpPaymentId));
+                  if (directMatch) {
+                    isApproved = true;
+                  } else {
+                    try {
+                      const directRes = await fetch(`https://api.mercadopago.com/v1/payments/${mpPaymentId}`, {
+                        headers: { "Authorization": `Bearer ${token}` }
+                      });
+                      if (directRes.ok) {
+                        const directData = await directRes.json();
+                        if (directData?.status === "approved") {
+                          isApproved = true;
+                        }
+                      }
+                    } catch (e) {
+                      console.warn("Direct MP fetch error:", e);
+                    }
+                  }
+                }
+
+                if (!isApproved) {
+                  const amountMatch = mpApproved.find((p: any) => {
+                    if (Number(p.transaction_amount) === Number(tx.amount)) {
+                      const txTime = new Date(tx.date || (tx as any).createdAt).getTime();
+                      const mpTime = new Date(p.date_created || p.date_approved).getTime();
+                      return Math.abs(txTime - mpTime) < 2 * 60 * 60 * 1000;
+                    }
+                    return false;
+                  });
+                  if (amountMatch) {
+                    isApproved = true;
+                  }
+                }
+
+                if (isApproved) {
+                  await handleApproveDeposit(tx);
+                  approvedCount++;
+                }
+              }
+            }
+          } catch (clientErr) {
+            console.warn("Client fallback sync error:", clientErr);
+          }
+        }
+      }
+
+      setTransactions(await db.getTransactions());
+      setUsers(await db.getUsers());
+
+      if (approvedCount > 0) {
+        toast.success(`${approvedCount} depósito(s) aprovado(s) com sucesso!`);
+      } else {
+        toast.info("Nenhum depósito pendente com pagamento aprovado no Mercado Pago.");
       }
     } catch (e) {
       console.warn("Sync payments error:", e);
+      toast.error("Erro ao sincronizar com Mercado Pago.");
     } finally {
       setIsSyncing(false);
     }
