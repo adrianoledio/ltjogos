@@ -44,11 +44,35 @@ export function Admin() {
     category: 'slots',
   });
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const syncPayments = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/payments/sync');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.approvedCount > 0) {
+          toast.success(`${data.approvedCount} depósito(s) aprovado(s) automaticamente via Mercado Pago!`);
+        }
+        setTransactions(await db.getTransactions());
+        setUsers(await db.getUsers());
+      }
+    } catch (e) {
+      console.warn("Sync payments error:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       if (user?.role === 'admin') {
         setIsLoading(true);
         try {
+          // Auto sync with Mercado Pago first
+          await fetch('/api/payments/sync').catch(e => console.warn(e));
+
           const [usersData, gamesData, txsData, settingsData, notifsData, promosData, bannersData] = await Promise.all([
             db.getUsers(),
             db.getGames(),
@@ -131,13 +155,21 @@ export function Admin() {
   };
 
   const handleApproveDeposit = async (tx: Transaction) => {
-    const targetUser = await db.getUser(tx.userId);
-    if (!targetUser) return;
+    let targetUser = await db.getUser(tx.userId);
+    if (!targetUser) {
+      // Try to find user in local list
+      targetUser = users.find(u => u.id === tx.userId) || null;
+    }
+    if (!targetUser) {
+      toast.error('Usuário da transação não encontrado!');
+      return;
+    }
 
     // Update balance
     const metadata = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata;
-    const bonus = metadata?.bonus || 0;
-    targetUser.balance += (tx.amount + bonus);
+    const bonus = Number(metadata?.bonus || 0);
+    const newBalance = Number(targetUser.balance || 0) + Number(tx.amount) + bonus;
+    targetUser.balance = newBalance;
 
     // Check for referral bonus on first deposit
     if (targetUser.referredBy && !targetUser.referralCounted) {
@@ -158,7 +190,7 @@ export function Admin() {
     // Update transaction status
     await db.updateTransaction({ ...tx, status: 'completed' });
 
-    // Trigger email notification to lediotattoo@proton.me
+    // Trigger email notification
     try {
       await fetch('/api/notifications/deposit-approved', {
         method: 'POST',
@@ -178,7 +210,7 @@ export function Admin() {
     
     setTransactions(await db.getTransactions());
     setUsers(await db.getUsers());
-    toast.success('Depósito aprovado!');
+    toast.success(`Depósito de R$ ${tx.amount.toFixed(2)} aprovado! Saldo atualizado para R$ ${newBalance.toFixed(2)}`);
   };
 
   const handleRejectDeposit = async (tx: Transaction) => {
@@ -945,8 +977,24 @@ export function Admin() {
         )}
 
         {activeTab === 'deposits' && (
-          <div className="animate-in fade-in">
-            <h2 className="text-base font-black tracking-tighter uppercase mb-2">Solicitações de Depósito</h2>
+          <div className="animate-in fade-in space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black tracking-tighter uppercase">Solicitações de Depósito</h2>
+              <button
+                onClick={syncPayments}
+                disabled={isSyncing}
+                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all ${
+                  isSyncing ? 'opacity-50 cursor-wait' : ''
+                } ${
+                  theme === 'dark'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white'
+                    : 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-600 hover:text-white shadow-sm'
+                }`}
+              >
+                <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+                {isSyncing ? 'Verificando Mercado Pago...' : 'Sincronizar Mercado Pago'}
+              </button>
+            </div>
             <div className={`rounded-xl border overflow-hidden transition-all ${theme === 'dark' ? 'bg-black/20 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[600px]">

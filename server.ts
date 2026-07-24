@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
-import { verifyAndApprovePayment } from "./api/payments/check-status.js";
+import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status.js";
 
 // Supabase Configuration
 let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
@@ -819,6 +819,16 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
     } catch (err: any) {
       console.error("Error in /api/notifications/deposit-approved:", err);
       return res.status(500).json({ error: err?.message || "Error sending email" });
+    }
+  });
+
+  app.all("/api/payments/sync", async (req, res) => {
+    try {
+      const result = await syncAllPendingDeposits();
+      return res.status(200).json(result);
+    } catch (err: any) {
+      console.error("Error in /api/payments/sync:", err);
+      return res.status(500).json({ error: err?.message || "Error syncing payments" });
     }
   });
 
