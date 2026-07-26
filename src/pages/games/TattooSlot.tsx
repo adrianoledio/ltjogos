@@ -414,6 +414,7 @@ const BigWinCelebration = ({ amount, onComplete }: { amount: number; onComplete:
     const end = amount;
     const duration = 2500;
     const startTime = performance.now();
+    let timerId: any = null;
 
     const animate = (now: number) => {
       const elapsed = now - startTime;
@@ -424,11 +425,15 @@ const BigWinCelebration = ({ amount, onComplete }: { amount: number; onComplete:
       if (progress < 1) {
         requestAnimationFrame(animate);
       } else {
-        setTimeout(onComplete, 2000);
+        timerId = setTimeout(onComplete, 3000);
       }
     };
 
     requestAnimationFrame(animate);
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [amount, onComplete]);
 
   return (
@@ -436,9 +441,10 @@ const BigWinCelebration = ({ amount, onComplete }: { amount: number; onComplete:
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md"
+      onClick={onComplete}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md cursor-pointer"
     >
-      <div className="relative flex flex-col items-center p-8 text-center max-w-md">
+      <div className="relative flex flex-col items-center p-8 text-center max-w-md pointer-events-auto" onClick={(e) => e.stopPropagation()}>
         {/* Spotlights behind */}
         <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-48 h-48 bg-pink-500/20 blur-[80px] rounded-full animate-pulse" />
         <div className="absolute top-1/2 right-1/4 -translate-y-1/2 w-48 h-48 bg-cyan-500/20 blur-[80px] rounded-full animate-pulse" />
@@ -458,13 +464,27 @@ const BigWinCelebration = ({ amount, onComplete }: { amount: number; onComplete:
         <motion.div
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.3 }}
           className="mt-8 z-10 bg-neutral-900/90 border border-amber-400/30 px-8 py-5 rounded-3xl shadow-[0_0_30px_rgba(251,191,36,0.15)]"
         >
           <p className="text-xs text-amber-400/80 uppercase font-mono tracking-widest mb-1">Prêmio Total</p>
           <p className="text-4xl sm:text-5xl font-black text-white font-mono">
             R$ {displayAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-6 z-10"
+        >
+          <button
+            onClick={onComplete}
+            className="px-8 py-3.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-stone-950 font-black rounded-2xl shadow-lg shadow-amber-500/30 hover:scale-105 transition-transform uppercase tracking-wider text-sm flex items-center gap-2"
+          >
+            <span>Continuar</span>
+          </button>
         </motion.div>
 
         {/* Floating Stars */}
