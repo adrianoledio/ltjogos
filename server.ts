@@ -294,10 +294,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.post("/api/users", async (req, res) => {
     console.log("POST /api/users called with body:", JSON.stringify(req.body));
     try {
-      const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
+      const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, lastLoginBonusDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
       console.log("Saving user:", id);
-      const { error, data } = await supabase.from("users").upsert({
+      const payload: any = {
         id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, 
+        lastLoginBonusDate: lastLoginBonusDate || null,
         referrals: referrals || 0, 
         unlockFirstWithdrawal: unlockFirstWithdrawal ? true : false, 
         referralLink: referralLink || '', 
@@ -305,7 +306,13 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         referredBy: referredBy || null, 
         referralCounted: referralCounted ? true : false,
         phone: phone || null
-      });
+      };
+      let { error } = await supabase.from("users").upsert(payload);
+      if (error && error.message?.toLowerCase().includes("lastloginbonusdate")) {
+        delete payload.lastLoginBonusDate;
+        const res2 = await supabase.from("users").upsert(payload);
+        error = res2.error;
+      }
       if (error) {
         console.error("Supabase error saving user:", error);
         return res.status(400).json({ error: error.message, details: error.details, code: error.code });

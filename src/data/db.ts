@@ -16,6 +16,7 @@ export interface User {
   createdAt: string;
   dailyPrizeTotal: number;
   lastPrizeDate: string;
+  lastLoginBonusDate?: string;
   referrals: number;
   unlockFirstWithdrawal: boolean;
   referralLink: string;
@@ -368,7 +369,7 @@ class LocalDB {
 
     // Direct Supabase upsert ALWAYS
     try {
-      const { error } = await supabase.from('users').upsert({
+      const payload: any = {
         id: updatedUser.id,
         name: updatedUser.name,
         email: updatedUser.email,
@@ -379,6 +380,7 @@ class LocalDB {
         createdAt: updatedUser.createdAt,
         dailyPrizeTotal: updatedUser.dailyPrizeTotal,
         lastPrizeDate: updatedUser.lastPrizeDate,
+        lastLoginBonusDate: updatedUser.lastLoginBonusDate || null,
         referrals: updatedUser.referrals || 0,
         unlockFirstWithdrawal: updatedUser.unlockFirstWithdrawal ? true : false,
         referralLink: updatedUser.referralLink || '',
@@ -386,7 +388,13 @@ class LocalDB {
         referredBy: updatedUser.referredBy || null,
         referralCounted: updatedUser.referralCounted ? true : false,
         phone: updatedUser.phone || null
-      });
+      };
+      let { error } = await supabase.from('users').upsert(payload);
+      if (error && error.message?.toLowerCase().includes("lastloginbonusdate")) {
+        delete payload.lastLoginBonusDate;
+        const res2 = await supabase.from('users').upsert(payload);
+        error = res2.error;
+      }
       if (error) {
         console.error("Direct Supabase user upsert error:", error);
       }

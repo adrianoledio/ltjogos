@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db, User } from '../data/db';
+import { toast } from 'sonner';
+import { DailyBonusModal } from '../components/DailyBonusModal';
 
 interface AuthContextType {
   user: User | null;
@@ -16,6 +18,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dailyBonusPopup, setDailyBonusPopup] = useState<{ isOpen: boolean; amount: number }>({ isOpen: false, amount: 0 });
+
+  const checkDailyLoginBonus = async (u: User) => {
+    const now = Date.now();
+    const lastClaim = u.lastLoginBonusDate ? new Date(u.lastLoginBonusDate).getTime() : 0;
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+
+    if (!u.lastLoginBonusDate || (now - lastClaim >= twentyFourHours)) {
+      const randomCents = Math.floor(Math.random() * 91) + 10; // 10 to 100 cents (0.10 to 1.00)
+      const bonusAmount = randomCents / 100;
+      u.balance += bonusAmount;
+      u.lastLoginBonusDate = new Date().toISOString();
+      await db.updateUser(u);
+
+      await db.addTransaction({
+        userId: u.id,
+        amount: bonusAmount,
+        type: 'win',
+        status: 'completed',
+        metadata: { note: 'Bônus de Login Diário' }
+      });
+
+      setDailyBonusPopup({ isOpen: true, amount: bonusAmount });
+    }
+  };
 
   useEffect(() => {
     const initAuth = async () => {
@@ -47,6 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (updated) {
             await db.updateUser(found);
           }
+          
+          await checkDailyLoginBonus(found);
           setUser(found);
         }
       }
@@ -78,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn("Could not sync logged in user link:", e);
         }
       }
+      await checkDailyLoginBonus(found);
       setUser(found);
       localStorage.setItem('lt_active_user', found.id);
       return true;
@@ -205,6 +235,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout, updateBalance, refreshUser }}>
       {children}
+      <DailyBonusModal
+        isOpen={dailyBonusPopup.isOpen}
+        amount={dailyBonusPopup.amount}
+        onClose={() => setDailyBonusPopup({ isOpen: false, amount: 0 })}
+      />
     </AuthContext.Provider>
   );
 }
