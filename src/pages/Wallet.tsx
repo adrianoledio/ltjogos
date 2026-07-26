@@ -480,6 +480,19 @@ export function Wallet() {
                 </span>
               </div>
 
+              {/* Deposit Recommendation Notice */}
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-start gap-3">
+                <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400 shrink-0">
+                  <Sparkles size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">💡 Qual o valor ideal para começar?</h4>
+                  <p className="text-[10px] text-white/80 leading-relaxed">
+                    Recomendamos um depósito inicial de <strong className="text-emerald-400 font-black">R$ 10,00 a R$ 20,00</strong>. É o valor perfeito para novos jogadores: garante bônus de até +50%, baixo risco e total liberdade para testar todos os jogos em destaque e buscar grandes prêmios!
+                  </p>
+                </div>
+              </div>
+
               {!showQr ? (
                 <form onSubmit={handleDeposit} className="space-y-6">
                   {/* Package Cards Selector */}
