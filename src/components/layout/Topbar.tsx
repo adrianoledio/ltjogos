@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { InstallPWAButton } from '../InstallPWA';
 import { 
   Wallet, 
   User as UserIcon, 
@@ -181,6 +182,11 @@ export function Topbar() {
               {/* Scrollable Items list */}
               <div className="flex-1 overflow-y-auto py-3 px-2 space-y-4 scrollbar-hide">
                 
+                {/* PWA App Install Banner */}
+                <div className="px-1">
+                  <InstallPWAButton />
+                </div>
+
                 {/* Section: Shortcuts */}
                 <div className="space-y-1">
                   <h5 className="px-3 text-[9px] font-black uppercase tracking-widest text-text-muted/60 mb-2">Acessos Rápidos</h5>

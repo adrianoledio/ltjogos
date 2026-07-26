@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, Gamepad2, Wallet, User, Settings } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
+import { InstallPWAButton } from '../InstallPWA';
 
 export function Sidebar() {
   const { pathname } = useLocation();
@@ -48,7 +49,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 space-y-3">
+        <InstallPWAButton />
         <div className="bg-[#151020] rounded-xl p-4 border border-white/5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#FFCC00] to-[#FF007F] flex items-center justify-center text-white font-bold">
             {user?.name?.[0]?.toUpperCase() || '?'}

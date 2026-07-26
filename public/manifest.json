@@ -1,0 +1,25 @@
+{
+  "name": "LT Jogos",
+  "short_name": "LT Jogos",
+  "description": "Jogue na LT Jogos e concorra a tatuagens exclusivas. Plataforma oficial de jogos de cassino e entretenimento.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0a09",
+  "theme_color": "#0c0a09",
+  "icons": [
+    {
+      "src": "https://6f0bddebf3d74903472fb5d20d714f16.cdn.bubble.io/f1785069779170x699772280492060800/icone2.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://6f0bddebf3d74903472fb5d20d714f16.cdn.bubble.io/f1785069779170x699772280492060800/icone2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
