@@ -622,6 +622,11 @@ export function YakuzaInk() {
         dblWin = true;
       }
 
+      // STRICT CAP BY TARGET
+      if (finalWinSum > currentTarget) {
+        finalWinSum = currentTarget;
+      }
+
       setTigerWinAmount(calculatedTigerWin);
       setDragonWinAmount(calculatedDragonWin);
       setWinningTigerPositions(winningTigerPos);
@@ -642,6 +647,7 @@ export function YakuzaInk() {
           dragonWin: calculatedDragonWin,
           doubleMultiplierApplied: dblWin,
         });
+        await PrizeService.commitPrize(user.id, finalWinSum);
       }
 
       setIsSpinning(false);

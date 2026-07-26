@@ -323,7 +323,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
             role: payload.role,
             balance: payload.balance,
             earnings: payload.earnings,
-            createdAt: payload.createdAt
+            createdAt: payload.createdAt,
+            dailyPrizeTotal: payload.dailyPrizeTotal || 0,
+            lastPrizeDate: payload.lastPrizeDate || null
           };
           const res3 = await supabase.from("users").upsert(minimalPayload);
           error = res3.error;

@@ -843,14 +843,14 @@ export function TattooSlot() {
 
         // On the final column stop, evaluate
         if (idx === COLS - 1) {
-          evaluateWinnings(finalGrid);
+          evaluateWinnings(finalGrid, currentTarget);
         }
       }, delay);
     });
   };
 
   // Evaluate final grid ways to win
-  const evaluateWinnings = async (finalGrid: string[][]) => {
+  const evaluateWinnings = async (finalGrid: string[][], targetCap = 999999) => {
     const PAYTABLE: Record<string, number[]> = {
       'HEART': [0, 0, 0, 2.5, 5.0, 12.0],
       'MACHINE': [0, 0, 0, 2.0, 4.0, 8.0],
@@ -907,7 +907,14 @@ export function TattooSlot() {
         const payoutMultiplier = PAYTABLE[symbol][matchCount];
         if (payoutMultiplier > 0) {
           const winMultiplier = freeSpinsActive ? freeSpinsMultiplier : 1;
-          const cashWin = baseBet * payoutMultiplier * ways * winMultiplier;
+          let cashWin = baseBet * payoutMultiplier * ways * winMultiplier;
+          
+          // CAP BY TARGET
+          const remainingCap = targetCap - totalWin;
+          if (cashWin > remainingCap) {
+            cashWin = Math.max(0, remainingCap);
+          }
+
           totalWin += cashWin;
 
           // Push positions

@@ -342,6 +342,11 @@ export function TattooCash() {
         }
 
         if (currentWin > 0) {
+          // STRICT CAP BY TARGET
+          if (currentWin > target) {
+            currentWin = target;
+          }
+
           setWinningLine(true);
           setWinAmount(currentWin);
           
@@ -350,7 +355,10 @@ export function TattooCash() {
           }
 
           // Add transaction to DB and credit balance
-          await updateBalance(currentWin, 'win', 'tattoo-cash', { winAmount: currentWin });
+          if (user) {
+            await updateBalance(currentWin, 'win', 'tattoo-cash', { winAmount: currentWin });
+            await PrizeService.commitPrize(user.id, currentWin);
+          }
           
           playSfx('win');
 

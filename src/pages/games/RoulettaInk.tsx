@@ -276,6 +276,11 @@ export function RoulettaInk() {
     if (isFeverActive && actualPayout > 0) {
       actualPayout = Math.round(actualPayout * 1.5 * 10) / 10;
     }
+    
+    // STRICT CAP BY TARGET
+    if (actualPayout > targetPrize) {
+      actualPayout = targetPrize;
+    }
 
     const sliceAngle = 360 / WHEEL_SLICES.length;
     const currentSpins = Math.floor(wheelRotation / 360);

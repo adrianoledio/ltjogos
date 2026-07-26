@@ -751,14 +751,14 @@ export function CalaveraInk() {
         playSfx('click');
 
         if (idx === COLS - 1) {
-          evaluateCascadeWins(finalGrid, 0);
+          evaluateCascadeWins(finalGrid, 0, currentTarget);
         }
       }, delay);
     });
   };
 
   // Evaluate wins inside cascade
-  const evaluateCascadeWins = async (currentGrid: string[][], currentAccumulatedWin = 0) => {
+  const evaluateCascadeWins = async (currentGrid: string[][], currentAccumulatedWin = 0, targetCap = 999999) => {
     const PAYTABLE: Record<string, number[]> = {
       'SKULL': [0, 0, 0, 3.0, 6.0, 15.0],
       'GUN': [0, 0, 0, 2.5, 5.0, 10.0],
@@ -814,7 +814,14 @@ export function CalaveraInk() {
       if (matchCount >= 3) {
         const payoutVal = PAYTABLE[symbol][matchCount];
         if (payoutVal > 0) {
-          const cashWin = baseBet * payoutVal * ways * (freeSpinsActive ? freeSpinsMultiplier : multiplier);
+          let cashWin = baseBet * payoutVal * ways * (freeSpinsActive ? freeSpinsMultiplier : multiplier);
+          
+          // CAP BY TARGET
+          const remainingCap = targetCap - currentAccumulatedWin - totalSpinWin;
+          if (cashWin > remainingCap) {
+            cashWin = Math.max(0, remainingCap);
+          }
+          
           totalSpinWin += cashWin;
 
           // Save coordinates

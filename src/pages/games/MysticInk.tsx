@@ -754,7 +754,14 @@ export function MysticInk() {
                     }
                     
                     const finalMult = multSum > 0 ? multSum : 1;
-                    const winAmount = bet * payoutMultiplier * ways * finalMult * currentMultiplier;
+                    let winAmount = bet * payoutMultiplier * ways * finalMult * currentMultiplier;
+                    
+                    // CAP BY TARGET
+                    const remainingCap = currentTarget - totalWin;
+                    if (winAmount > remainingCap) {
+                      winAmount = Math.max(0, remainingCap);
+                    }
+
                     totalWin += winAmount;
                     
                     symbolWinningPositions.forEach(pos => {
