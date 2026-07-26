@@ -273,7 +273,7 @@ export function Home() {
                 <GameCard 
                   key={game.id} 
                   game={game} 
-                  isFeatured={game.featured}
+                  isFeatured={activeCategory === 'featured'}
                   badge={i < 3 && activeCategory === 'all' ? 'NEW' : undefined}
                   compact={true}
                 />
