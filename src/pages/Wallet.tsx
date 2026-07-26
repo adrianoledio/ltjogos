@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { db, Transaction } from '../data/db';
 import { toast } from 'sonner';
@@ -23,8 +24,10 @@ import {
 } from 'lucide-react';
 
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { DepositSuccessModal } from '../components/DepositSuccessModal';
 
 export function Wallet() {
+  const navigate = useNavigate();
   const { user, updateBalance, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'history'>('deposit');
   const [showModal, setShowModal] = useState(false);
@@ -43,6 +46,7 @@ export function Wallet() {
   const [qrCodeBase64, setQrCodeBase64] = useState('');
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
+  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; amount: number }>({ isOpen: false, amount: 0 });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -105,12 +109,14 @@ export function Wallet() {
           if (statusData.approved) {
             toast.success('Depósito via PIX aprovado com sucesso! Saldo creditado.');
             setShowQr(false);
+            const confirmedAmount = parseFloat(amount) || 20;
             setActiveTxId(null);
             const updatedTxs = await db.getTransactions();
             setTransactions(updatedTxs.filter(t => t.userId === user.id));
             if (refreshUser) {
               await refreshUser();
             }
+            setSuccessModal({ isOpen: true, amount: confirmedAmount });
             return;
           }
         }
@@ -126,11 +132,13 @@ export function Wallet() {
         if (currentTx && currentTx.status === 'completed' && showQr) {
           toast.success('Depósito via PIX aprovado com sucesso! Saldo creditado.');
           setShowQr(false);
+          const confirmedAmount = currentTx.amount || parseFloat(amount) || 20;
           setActiveTxId(null);
           setTransactions(userTxs);
           if (refreshUser) {
             await refreshUser();
           }
+          setSuccessModal({ isOpen: true, amount: confirmedAmount });
         }
       } catch (e) {
         console.warn("Local tx search error:", e);
@@ -828,6 +836,14 @@ export function Wallet() {
           </div>
         )}
       </div>
+      <DepositSuccessModal
+        isOpen={successModal.isOpen}
+        amount={successModal.amount}
+        onClose={() => {
+          setSuccessModal({ isOpen: false, amount: 0 });
+          navigate('/app');
+        }}
+      />
     </div>
   );
 }
