@@ -444,6 +444,29 @@ class LocalDB {
     }
   }
 
+  async deleteUser(userId: string) {
+    // Sync locally first
+    const users = this.getStorageItem<User[]>('lt_users', []);
+    const filtered = users.filter(u => u.id !== userId);
+    this.setStorageItem('lt_users', filtered);
+
+    // Supabase delete
+    try {
+      await supabase.from('users').delete().eq('id', userId);
+    } catch (error) {
+      console.error("Direct Supabase user delete failed:", error);
+    }
+
+    // Sync to API
+    try {
+      await fetch(`/api/users/${userId}`, {
+        method: 'DELETE'
+      });
+    } catch (e: any) {
+      console.warn("Could not sync user deletion to API:", e);
+    }
+  }
+
   // Transactions
   async getTransactions(): Promise<Transaction[]> {
     try {

@@ -675,23 +675,48 @@ export function Admin() {
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td className="p-1.5">
-                        <button
-                          onClick={async () => {
-                            try {
-                              await db.updateUser(u);
-                              toast.success(`Usuário ${u.name} salvo com sucesso!`);
-                            } catch (error) {
-                              toast.error(`Erro ao salvar usuário ${u.name}`);
-                            }
-                          }}
-                          className={`p-1 rounded-lg transition-all ${
-                            theme === 'dark' 
-                              ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white' 
-                              : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-sm'
-                          }`}
-                        >
-                          <Save size={9} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await db.updateUser(u);
+                                toast.success(`Usuário ${u.name} salvo com sucesso!`);
+                              } catch (error) {
+                                toast.error(`Erro ao salvar usuário ${u.name}`);
+                              }
+                            }}
+                            className={`p-1 rounded-lg transition-all ${
+                              theme === 'dark' 
+                                ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white' 
+                                : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white shadow-sm'
+                            }`}
+                          >
+                            <Save size={9} />
+                          </button>
+
+                          {u.role !== 'admin' && (
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Tem certeza que deseja deletar o usuário ${u.name}?`)) {
+                                  try {
+                                    await db.deleteUser(u.id);
+                                    setUsers(users.filter(user => user.id !== u.id));
+                                    toast.success(`Usuário ${u.name} deletado com sucesso!`);
+                                  } catch (error) {
+                                    toast.error(`Erro ao deletar usuário ${u.name}`);
+                                  }
+                                }
+                              }}
+                              className={`p-1 rounded-lg transition-all ${
+                                theme === 'dark' 
+                                  ? 'bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white' 
+                                  : 'bg-red-50 text-red-600 hover:bg-red-600 hover:text-white shadow-sm'
+                              }`}
+                            >
+                              <Trash2 size={9} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
