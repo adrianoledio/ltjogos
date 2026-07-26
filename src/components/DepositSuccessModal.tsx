@@ -32,7 +32,7 @@ export const DepositSuccessModal: React.FC<DepositSuccessModalProps> = ({ isOpen
           </div>
 
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
-            <Sparkles size={14} /> Mercado Pago Aprovado
+            <Sparkles size={14} /> Pagamento Aprovado
           </span>
 
           <h3 className="text-2xl font-black text-white mb-2">

@@ -839,8 +839,11 @@ export function Wallet() {
       <DepositSuccessModal
         isOpen={successModal.isOpen}
         amount={successModal.amount}
-        onClose={() => {
+        onClose={async () => {
           setSuccessModal({ isOpen: false, amount: 0 });
+          if (refreshUser) {
+            await refreshUser();
+          }
           navigate('/app');
         }}
       />
