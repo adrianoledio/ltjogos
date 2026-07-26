@@ -534,19 +534,19 @@ export function CalaveraInk() {
     if (autoPlay && autoSpinsLeft > 0 && !isSpinning && !freeSpinsActive) {
       const timer = setTimeout(() => {
         spin();
-      }, 800);
+      }, isTurbo ? 300 : 700);
       return () => clearTimeout(timer);
     } else if (autoPlay && autoSpinsLeft === 0) {
       setAutoPlay(false);
     }
-  }, [autoPlay, autoSpinsLeft, isSpinning, freeSpinsActive]);
+  }, [autoPlay, autoSpinsLeft, isSpinning, freeSpinsActive, isTurbo]);
 
   // Handle Free Spins Autoplay loop
   useEffect(() => {
     if (freeSpinsActive && freeSpins > 0 && !isSpinning) {
       const timer = setTimeout(() => {
         spin();
-      }, 1000);
+      }, isTurbo ? 350 : 800);
       return () => clearTimeout(timer);
     } else if (freeSpinsActive && freeSpins === 0 && !isSpinning) {
       // Free Spins Finished!

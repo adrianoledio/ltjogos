@@ -152,20 +152,16 @@ export function InkReveal() {
     };
   }, []);
 
-  // Load times and handle loader transitions
+  // Load times and handle instant loader initialization
   useEffect(() => {
+    setIsGameLoaded(true);
     const timer = setInterval(() => {
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     }, 1000);
 
-    const loadTimeout = setTimeout(() => {
-      setIsGameLoaded(true);
-    }, 800);
-
     return () => {
       clearInterval(timer);
-      clearTimeout(loadTimeout);
     };
   }, []);
 

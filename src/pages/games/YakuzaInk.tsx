@@ -652,7 +652,7 @@ export function YakuzaInk() {
           if (autoPlayRef.current) {
             spin();
           }
-        }, 1500);
+        }, isTurbo ? 350 : 800);
       }
 
     }, totalDuration);

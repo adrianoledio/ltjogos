@@ -609,15 +609,12 @@ export function TattooSlot() {
     updateTime();
     const timer = setInterval(updateTime, 30000);
 
-    // Simulated network delay
-    const loaderTimer = setTimeout(() => {
-      setIsGameLoaded(true);
-    }, 1500);
+    // Instant game load
+    setIsGameLoaded(true);
 
     return () => {
       stopGameMusic();
       clearInterval(timer);
-      clearTimeout(loaderTimer);
     };
   }, []);
 
@@ -626,19 +623,19 @@ export function TattooSlot() {
     if (autoPlay && autoSpinsLeft > 0 && !isSpinning && !freeSpinsActive) {
       const autoTimer = setTimeout(() => {
         spin();
-      }, 800);
+      }, isTurbo ? 300 : 700);
       return () => clearTimeout(autoTimer);
     } else if (autoPlay && autoSpinsLeft === 0) {
       setAutoPlay(false);
     }
-  }, [autoPlay, autoSpinsLeft, isSpinning, freeSpinsActive]);
+  }, [autoPlay, autoSpinsLeft, isSpinning, freeSpinsActive, isTurbo]);
 
   // Handler for Free Spins loop
   useEffect(() => {
     if (freeSpinsActive && freeSpins > 0 && !isSpinning) {
       const freeSpinsTimer = setTimeout(() => {
         spin();
-      }, 1000);
+      }, isTurbo ? 350 : 800);
       return () => clearTimeout(freeSpinsTimer);
     } else if (freeSpinsActive && freeSpins === 0) {
       setFreeSpinsActive(false);

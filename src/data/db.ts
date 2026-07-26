@@ -306,39 +306,46 @@ class LocalDB {
 
   // Users
   async getUsers(): Promise<User[]> {
-    // Try Direct Supabase first (fastest and most reliable on static production builds)
-    try {
-      const { data, error } = await supabase.from('users').select('*');
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const formatted = data.map((u: any) => ({
-          ...u,
-          unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
-          referralCounted: !!u.referralCounted
-        }));
-        this.setStorageItem('lt_users', formatted);
-        return formatted;
-      }
-    } catch (e) {
-      console.warn("Could not fetch users from direct Supabase client:", e);
-    }
+    const cached = this.getStorageItem<User[]>('lt_users', []);
 
-    try {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          this.setStorageItem('lt_users', data);
-          return data;
+    // Background revalidation
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('users').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const formatted = data.map((u: any) => ({
+            ...u,
+            unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
+            referralCounted: !!u.referralCounted
+          }));
+          this.setStorageItem('lt_users', formatted);
+          return;
         }
+      } catch (e) {
+        // silent
       }
-    } catch (e) {
-      console.warn("Could not fetch users from API, using cache:", e);
-    }
 
-    return this.getStorageItem<User[]>('lt_users', []);
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            this.setStorageItem('lt_users', data);
+          }
+        }
+      } catch (e) {
+        // silent
+      }
+    })();
+
+    return cached;
   }
 
   async getUser(id: string): Promise<User | undefined> {
+    const cached = this.getStorageItem<User[]>('lt_users', []);
+    const local = cached.find(u => u.id === id);
+    if (local) return local;
+
     const users = await this.getUsers();
     return users.find(u => u.id === id);
   }
@@ -487,37 +494,42 @@ class LocalDB {
 
   // Games
   async getGames(): Promise<GameConfig[]> {
-    try {
-      const { data, error } = await supabase.from('games').select('*');
-      if (!error && Array.isArray(data) && data.length > 0) {
-        this.setStorageItem('lt_games', data);
-        return data.filter(g => g.category === 'slots' || g.category === 'roletas');
-      }
-    } catch (e) {
-      console.warn("Could not fetch games from direct Supabase client:", e);
-    }
+    const cached = this.getStorageItem<GameConfig[]>('lt_games', []);
+    const initialList = cached.length > 0 ? cached : DEFAULT_GAMES;
+    const filteredInitial = initialList.filter(g => g.category === 'slots' || g.category === 'roletas');
 
-    try {
-      const res = await fetch('/api/games');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+    // Asynchronous background revalidation so UI never blocks
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('games').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
           this.setStorageItem('lt_games', data);
-          return data.filter(g => g.category === 'slots' || g.category === 'roletas');
+          return;
         }
+      } catch (e) {
+        // Silent background fallback
       }
-    } catch (e) {
-      console.warn("Could not fetch games from API:", e);
-    }
 
-    const games = this.getStorageItem<GameConfig[]>('lt_games', []);
-    const list = games.length > 0 ? games : DEFAULT_GAMES;
-    return list.filter(g => g.category === 'slots' || g.category === 'roletas');
+      try {
+        const res = await fetch('/api/games');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            this.setStorageItem('lt_games', data);
+          }
+        }
+      } catch (e) {
+        // Silent background fallback
+      }
+    })();
+
+    return filteredInitial;
   }
 
   async getGame(id: string): Promise<GameConfig | undefined> {
-    const games = await this.getGames();
-    return games.find(g => g.id === id);
+    const cached = this.getStorageItem<GameConfig[]>('lt_games', []);
+    const list = cached.length > 0 ? cached : DEFAULT_GAMES;
+    return list.find(g => g.id === id) || DEFAULT_GAMES.find(g => g.id === id);
   }
 
   async updateGame(updatedGame: GameConfig) {
@@ -571,42 +583,35 @@ class LocalDB {
 
   // Settings
   async getSettings(): Promise<SystemSettings> {
-    let settingsData: any = null;
-
-    try {
-      const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
-      if (!error && data && data.data) {
-        const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-        settingsData = parsed;
-        this.setStorageItem('lt_settings', parsed);
+    const cached = this.getStorageItem<SystemSettings | null>('lt_settings', null);
+    
+    // Background revalidation
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
+        if (!error && data && data.data) {
+          const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+          this.setStorageItem('lt_settings', parsed);
+          return;
+        }
+      } catch (e) {
+        // background error handled silently
       }
-    } catch (e) {
-      console.warn("Could not fetch settings from Supabase client:", e);
-    }
 
-    if (!settingsData) {
       try {
         const res = await fetch('/api/settings');
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            settingsData = data;
             this.setStorageItem('lt_settings', data);
           }
         }
       } catch (e) {
-        console.warn("Could not fetch settings from API:", e);
+        // background error handled silently
       }
-    }
+    })();
 
-    if (!settingsData) {
-      settingsData = this.getStorageItem<SystemSettings | null>('lt_settings', null);
-    }
-
-    if (!settingsData) {
-      return DEFAULT_SETTINGS;
-    }
-
+    const settingsData = cached || DEFAULT_SETTINGS;
     // Merge DEFAULT_SETTINGS to ensure any newly added structure/defaults exist
     const merged = { ...DEFAULT_SETTINGS, ...settingsData };
     if (!merged.gamePrizes || !Array.isArray(merged.gamePrizes) || merged.gamePrizes.length === 0) {

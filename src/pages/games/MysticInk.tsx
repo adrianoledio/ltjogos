@@ -833,16 +833,16 @@ export function MysticInk() {
   useEffect(() => {
     if (!isSpinning) {
       if (freeSpins > 0) {
-        const timer = setTimeout(spin, 1500);
+        const timer = setTimeout(spin, isTurbo ? 400 : 1200);
         return () => clearTimeout(timer);
       } else if (autoPlay && user && user.balance >= bet) {
-        const timer = setTimeout(spin, 1000);
+        const timer = setTimeout(spin, isTurbo ? 350 : 800);
         return () => clearTimeout(timer);
       } else if (autoPlay && user && user.balance < bet) {
         setAutoPlay(false);
       }
     }
-  }, [autoPlay, isSpinning, user, bet, freeSpins]);
+  }, [autoPlay, isSpinning, user, bet, freeSpins, isTurbo]);
 
   if (!gameConfig?.active) {
     return <div className="text-center mt-20 text-red-500 font-bold text-sm">Jogo Indisponível</div>;
