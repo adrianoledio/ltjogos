@@ -1136,7 +1136,7 @@ export function YakuzaInk() {
       <ConfirmExitModal
         isOpen={showExitModal}
         isSpinning={isSpinning}
-        onConfirm={() => navigate('/app')}
+        onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
       />
     </div>

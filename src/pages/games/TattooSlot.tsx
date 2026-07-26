@@ -1616,7 +1616,7 @@ export function TattooSlot() {
       <ConfirmExitModal
         isOpen={showExitModal}
         isSpinning={isSpinning || freeSpinsActive}
-        onConfirm={() => navigate('/app')}
+        onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
       />
 

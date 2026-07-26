@@ -903,7 +903,7 @@ export function TattooCash() {
       <ConfirmExitModal
         isOpen={showExitModal}
         isSpinning={isSpinning || freeSpins > 0}
-        onConfirm={() => navigate('/app')}
+        onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
       />
 

@@ -1233,7 +1233,7 @@ export function CalaveraInk() {
       <ConfirmExitModal
         isOpen={showExitModal}
         isSpinning={isSpinning || freeSpinsActive}
-        onConfirm={() => navigate('/app')}
+        onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
       />
     </div>

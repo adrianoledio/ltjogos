@@ -28,6 +28,12 @@ export function BottomNav() {
           <Link
             key={link.to}
             to={link.to}
+            onClick={(e) => {
+              if (link.to === '/app') {
+                e.preventDefault();
+                window.location.href = '/app';
+              }
+            }}
             className="relative flex flex-col items-center justify-center w-14 h-full group"
           >
             {isActive && (

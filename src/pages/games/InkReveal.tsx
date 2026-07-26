@@ -711,7 +711,7 @@ export function InkReveal() {
       <ConfirmExitModal
         isOpen={showExitModal}
         isSpinning={gameState === 'purchased' || gameState === 'scratching'}
-        onConfirm={() => navigate('/app')}
+        onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
       />
 

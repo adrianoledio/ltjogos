@@ -46,7 +46,14 @@ export function Topbar() {
           >
             <Menu size={20} />
           </button>
-          <Link to="/app" className="relative group">
+          <Link 
+            to="/app" 
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = '/app';
+            }}
+            className="relative group"
+          >
             <span className="text-xl font-black tracking-tighter text-text-main">
               LT<span className="text-brand-primary">JOGOS</span>
             </span>
@@ -193,7 +200,10 @@ export function Topbar() {
                   
                   <Link 
                     to="/app" 
-                    onClick={closeMenu}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.location.href = '/app';
+                    }}
                     className="flex items-center justify-between px-3 py-2.5 rounded-xl text-text-muted hover:text-text-main hover:bg-white/5 transition-all text-xs font-semibold"
                   >
                     <div className="flex items-center gap-3">

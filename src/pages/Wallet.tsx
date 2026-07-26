@@ -844,7 +844,7 @@ export function Wallet() {
           if (refreshUser) {
             await refreshUser();
           }
-          navigate('/app');
+          window.location.href = '/app';
         }}
       />
     </div>
