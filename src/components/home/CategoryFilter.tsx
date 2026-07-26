@@ -1,9 +1,10 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Sparkles, Gamepad2, RotateCw } from 'lucide-react';
+import { Sparkles, Gamepad2, RotateCw, Flame } from 'lucide-react';
 
 const CATEGORIES = [
   { id: 'all', label: 'Todos', icon: Gamepad2, color: 'text-white' },
+  { id: 'featured', label: 'Destaques', icon: Flame, color: 'text-[#FFD700]' },
   { id: 'slots', label: 'Slots', icon: Sparkles, color: 'text-[#FF007F]' },
   { id: 'roletas', label: 'Roletas', icon: RotateCw, color: 'text-[#FFCC00]' },
 ];

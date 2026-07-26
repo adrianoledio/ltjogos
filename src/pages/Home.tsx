@@ -5,7 +5,7 @@ const JoyrideLazy = React.lazy(() => import('react-joyride').then(module => ({ d
 const Joyride = JoyrideLazy as any;
 import type { Step } from 'react-joyride';
 import { db, GameConfig } from '../data/db';
-import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp, Search, X } from 'lucide-react';
+import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp, Search, X, Flame } from 'lucide-react';
 import { HeroCarousel } from '../components/home/HeroCarousel';
 import { CategoryFilter } from '../components/home/CategoryFilter';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -23,22 +23,26 @@ const steps: Step[] = [
   },
 ];
 
-const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge }) => {
+const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string, isFeatured?: boolean }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge, isFeatured = false }) => {
   const [hasError, setHasError] = useState(false);
 
   return (
     <div className="relative group">
       <Link
         to={`/app/games/${game.id}`}
-        className={`block ${aspect} relative overflow-hidden rounded-xl border border-white/10 group-hover:border-brand-primary/40 transition-all duration-300 shadow-xl z-10 bg-surface-dark`}
+        className={`block ${aspect} relative overflow-hidden rounded-2xl border transition-all duration-300 shadow-xl z-10 bg-surface-dark ${
+          isFeatured 
+            ? 'border-amber-500/40 group-hover:border-amber-400 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.35)] ring-1 ring-amber-500/20' 
+            : 'border-white/10 group-hover:border-brand-primary/40'
+        }`}
       >
-        {/* Cover Image - completely clean with no zoom, no overlays, and fallback for broken URLs */}
+        {/* Cover Image */}
         <div className="absolute inset-0 bg-surface-card flex items-center justify-center">
           {game.thumbnail && !hasError ? (
             <img
               src={game.thumbnail}
               alt={game.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               referrerPolicy="no-referrer"
               onError={() => setHasError(true)}
             />
@@ -49,7 +53,32 @@ const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean,
             </div>
           )}
         </div>
+
+        {/* Featured Badge */}
+        {isFeatured && (
+          <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-gradient-to-r from-amber-500 to-amber-600 text-black text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md">
+            <Flame size={10} className="fill-black" />
+            <span>DESTAQUE</span>
+          </div>
+        )}
+
+        {badge && !isFeatured && (
+          <div className="absolute top-2 left-2 z-20 bg-brand-primary text-black text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-md">
+            {badge}
+          </div>
+        )}
+
+        {/* Play button overlay on hover */}
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-20 backdrop-blur-[2px]">
+          <div className="w-10 h-10 rounded-full bg-brand-primary text-black flex items-center justify-center font-bold shadow-lg transform group-hover:scale-110 transition-transform">
+            <Play size={18} className="fill-black ml-0.5" />
+          </div>
+        </div>
       </Link>
+
+      <div className="mt-1.5 flex items-center justify-center px-0.5 text-center">
+        <span className="text-[11px] font-extrabold text-white/90 truncate w-full text-center">{game.name}</span>
+      </div>
     </div>
   );
 };
@@ -105,11 +134,15 @@ export function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const featuredGames = games.filter(g => g.featured || ['wild-tattoo', 'calavera-ink', 'tattoo-cash', 'mystic-ink'].includes(g.id));
+
   const categoryFiltered = activeCategory === 'all' 
     ? games 
-    : activeCategory === 'popular' 
-      ? games.slice(0, 6) 
-      : games.filter(g => g.category === activeCategory);
+    : activeCategory === 'featured'
+      ? featuredGames
+      : activeCategory === 'popular' 
+        ? games.slice(0, 6) 
+        : games.filter(g => g.category === activeCategory);
 
   const filteredGames = searchQuery.trim() === ''
     ? categoryFiltered
@@ -177,14 +210,47 @@ export function Home() {
 
       {/* Game Grid */}
       <section className="flex-1 overflow-y-auto px-4 pt-2 pb-24 scrollbar-hide">
-        <div className="flex items-center justify-between mb-6">
+
+        {/* Featured Section at the top of the catalog (visible when all category and no search) */}
+        {!isLoading && activeCategory === 'all' && searchQuery.trim() === '' && featuredGames.length > 0 && (
+          <div className="mb-7">
+            <div className="flex items-center justify-between mb-3.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                  <Flame size={16} className="fill-amber-400 animate-pulse" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-amber-300">
+                  Jogos em Destaque
+                </h3>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                🔥 POPULARES
+              </span>
+            </div>
+
+            <div className="flex gap-3 overflow-x-auto pb-2 pt-1 scrollbar-hide snap-x -mx-4 px-4">
+              {featuredGames.map((game) => (
+                <div key={`top-featured-${game.id}`} className="w-[145px] sm:w-[175px] shrink-0 snap-start">
+                  <GameCard 
+                    game={game} 
+                    isFeatured={true}
+                    compact={false}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-black flex items-center gap-3 text-white tracking-widest uppercase">
             {activeCategory === 'all' && <Gamepad2 className="text-brand-primary" size={18} />}
+            {activeCategory === 'featured' && <Flame className="text-amber-400 fill-amber-400" size={18} />}
             {activeCategory === 'slots' && <Sparkles className="text-brand-secondary" size={18} />}
             {activeCategory === 'roletas' && <RotateCw className="text-[#FFCC00]" size={18} />}
             
             <span className="text-gradient">
-              {activeCategory === 'all' ? 'Todos os Jogos' : activeCategory === 'slots' ? 'Slots' : 'Roletas'}
+              {activeCategory === 'all' ? 'Todos os Jogos' : activeCategory === 'featured' ? 'Jogos em Destaque' : activeCategory === 'slots' ? 'Slots' : 'Roletas'}
             </span>
           </h2>
           <span className="text-[10px] font-bold text-white/40 bg-white/5 px-2 py-1 rounded-lg border border-white/5 uppercase tracking-widest">
@@ -207,6 +273,7 @@ export function Home() {
                 <GameCard 
                   key={game.id} 
                   game={game} 
+                  isFeatured={game.featured}
                   badge={i < 3 && activeCategory === 'all' ? 'NEW' : undefined}
                   compact={true}
                 />

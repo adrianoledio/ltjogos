@@ -9,7 +9,7 @@ const FALLBACK_SLIDES = [
     id: 'mystic-ink',
     image: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
     title: 'Mystic Ink',
-    subtitle: 'Slots • RTP de 95% • Jogue com seus créditos de tatuagem!',
+    subtitle: 'Slots • Jogue com seus créditos de tatuagem!',
     cta: 'JOGAR AGORA',
     color: 'from-purple-950/90 to-black/90',
     link: '/app/games/mystic-ink'
@@ -18,7 +18,7 @@ const FALLBACK_SLIDES = [
     id: 'tattoo-slot',
     image: 'https://images.unsplash.com/photo-1598252571565-794637d7a2ee?q=80&w=1920&auto=format&fit=crop',
     title: 'Tattoo Slot',
-    subtitle: 'Slots • RTP de 98% • Obtenha combinações lendárias',
+    subtitle: 'Slots • Obtenha combinações lendárias',
     cta: 'JOGAR AGORA',
     color: 'from-red-950/90 to-black/90',
     link: '/app/games/tattoo-slot'
@@ -65,7 +65,7 @@ export function HeroCarousel() {
           id: game.id,
           image: game.bgPage || game.thumbnail || 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
           title: game.name.toUpperCase(),
-          subtitle: `${categoryLabel} • RTP de ${game.rtp}% • Aposta Mínima: R$ ${game.minBet.toFixed(2)}`,
+          subtitle: `${categoryLabel} • Aposta Mínima: R$ ${game.minBet.toFixed(2)}`,
           cta: 'JOGAR AGORA',
           color: gradientColor,
           link: `/app/games/${game.id}`

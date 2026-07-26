@@ -49,6 +49,7 @@ export interface GameConfig {
   bgContainer: string;
   bgMusic: string;
   category: 'slots' | 'mines' | 'crash' | 'memory' | 'roletas';
+  featured?: boolean;
 }
 
 export interface PrizeTier {
@@ -120,19 +121,6 @@ export interface Banner {
 
 const DEFAULT_GAMES: GameConfig[] = [
   {
-    id: 'mystic-ink',
-    name: 'Mystic Ink',
-    active: true,
-    minBet: 1,
-    maxBet: 100,
-    rtp: 95,
-    thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
-    bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
-    bgContainer: 'rgba(0,0,0,0.8)',
-    bgMusic: '',
-    category: 'slots',
-  },
-  {
     id: 'wild-tattoo',
     name: 'Wild Tattoo',
     active: true,
@@ -144,6 +132,7 @@ const DEFAULT_GAMES: GameConfig[] = [
     bgContainer: '',
     bgMusic: '',
     category: 'slots',
+    featured: true,
   },
   {
     id: 'calavera-ink',
@@ -157,6 +146,21 @@ const DEFAULT_GAMES: GameConfig[] = [
     bgContainer: '',
     bgMusic: '',
     category: 'slots',
+    featured: true,
+  },
+  {
+    id: 'mystic-ink',
+    name: 'Mystic Ink',
+    active: true,
+    minBet: 1,
+    maxBet: 100,
+    rtp: 95,
+    thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
+    bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
+    bgContainer: 'rgba(0,0,0,0.8)',
+    bgMusic: '',
+    category: 'slots',
+    featured: true,
   },
   {
     id: 'tattoo-cash',
@@ -170,6 +174,7 @@ const DEFAULT_GAMES: GameConfig[] = [
     bgContainer: '',
     bgMusic: '',
     category: 'slots',
+    featured: true,
   },
   {
     id: 'tattoo-slot',
