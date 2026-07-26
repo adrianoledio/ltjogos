@@ -814,6 +814,33 @@ export function Admin() {
                     </div>
                   </div>
 
+                  <div className="space-y-1">
+                    <label className={`block text-[7px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Música de Fundo (URL MP3)</label>
+                    <input
+                      type="text"
+                      value={game.bgMusic || ''}
+                      onChange={(e) => {
+                        const newGames = games.map(g => g.id === game.id ? { ...g, bgMusic: e.target.value } : g);
+                        setGames(newGames);
+                      }}
+                      onBlur={async (e) => {
+                        const updatedGame = { ...game, bgMusic: e.target.value };
+                        try {
+                          await db.updateGame(updatedGame);
+                          toast.success(`URL da música de ${game.name} salva!`);
+                        } catch (error) {
+                          toast.error(`Erro ao salvar música de ${game.name}`);
+                        }
+                      }}
+                      className={`w-full rounded-lg px-2 py-1 text-[9px] font-bold transition-all outline-none border ${
+                        theme === 'dark' 
+                          ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' 
+                          : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
+                      }`}
+                      placeholder="https://exemplo.com/musica.mp3"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-3 gap-1.5">
                     <div className="space-y-0.5">
                       <label className={`block text-[7px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Min</label>
@@ -1047,6 +1074,21 @@ export function Admin() {
                     Upload
                   </label>
                 </div>
+              </div>
+
+              <div className="space-y-0.5">
+                <label className={`block text-[7px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Música de Fundo (URL MP3)</label>
+                <input
+                  type="text"
+                  value={newGame.bgMusic || ''}
+                  onChange={(e) => setNewGame({ ...newGame, bgMusic: e.target.value })}
+                  className={`w-full rounded-lg px-2 py-1 text-[9px] font-black transition-all outline-none border ${
+                    theme === 'dark' 
+                      ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' 
+                      : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
+                  }`}
+                  placeholder="https://exemplo.com/musica.mp3"
+                />
               </div>
 
               <button

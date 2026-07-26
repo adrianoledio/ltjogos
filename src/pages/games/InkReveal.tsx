@@ -126,7 +126,7 @@ interface ScratchCellState {
 export function InkReveal() {
   const navigate = useNavigate();
   const { user, updateBalance } = useAuth();
-  const { playSfx } = useAudio();
+  const { playSfx, playGameMusic, stopGameMusic } = useAudio();
 
   const [gameState, setGameState] = useState<'idle' | 'purchased' | 'scratching' | 'revealed'>('idle');
   const [bet, setBet] = useState<number>(2.00);
@@ -138,6 +138,19 @@ export function InkReveal() {
   const [currentTime, setCurrentTime] = useState<string>('');
   const [isGameLoaded, setIsGameLoaded] = useState<boolean>(false);
   const [isScratchingAll, setIsScratchingAll] = useState<boolean>(false);
+
+  useEffect(() => {
+    const fetchMusic = async () => {
+      const g = await db.getGame('ink-reveal');
+      if (g && g.bgMusic) {
+        playGameMusic(g.bgMusic);
+      }
+    };
+    fetchMusic();
+    return () => {
+      stopGameMusic();
+    };
+  }, []);
 
   // Load times and handle loader transitions
   useEffect(() => {

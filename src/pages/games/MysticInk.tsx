@@ -527,6 +527,7 @@ export function MysticInk() {
   useEffect(() => {
     const fetchConfig = async () => {
       const config = await db.getGame(isWildTattoo ? 'wild-tattoo' : 'mystic-ink');
+      const themeName = isWildTattoo ? 'wild-tattoo' : 'mystic-ink';
       if (config) {
         setGameConfig(config);
         setBet(config.minBet);
@@ -906,7 +907,7 @@ export function MysticInk() {
             
             <h1 className={`text-lg font-black tracking-tighter uppercase italic ${isWildTattoo ? 'text-[13px] tracking-[0.05em] text-amber-200/90 font-sans not-italic font-semibold' : ''}`}>
               {isWildTattoo ? (
-                "Yakuza Honor"
+                "Wild Tattoo"
               ) : (
                 <>Mystic <span className="text-brand-primary">Ink</span></>
               )}

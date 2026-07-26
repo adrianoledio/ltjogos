@@ -263,21 +263,44 @@ const DEFAULT_SETTINGS: SystemSettings = {
 };
 
 class LocalDB {
+  private memoryStorage: Record<string, any> = {};
+
   private getStorageItem<T>(key: string, defaultValue: T): T {
+    if (this.memoryStorage[key] !== undefined) {
+      return this.memoryStorage[key] as T;
+    }
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
+      if (item) {
+        const parsed = JSON.parse(item);
+        this.memoryStorage[key] = parsed;
+        return parsed;
+      }
+      return defaultValue;
     } catch (e) {
-      console.error(`Error reading ${key} from localStorage:`, e);
       return defaultValue;
     }
   }
 
   private setStorageItem<T>(key: string, value: T): void {
+    this.memoryStorage[key] = value;
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
-      console.error(`Error writing ${key} to localStorage:`, e);
+      // If quota exceeded (e.g. large base64 media audio/images), save a sanitized version to localStorage as backup
+      try {
+        if (typeof value === 'object' && value !== null) {
+          const sanitized = JSON.parse(JSON.stringify(value, (k, v) => {
+            if (typeof v === 'string' && v.length > 30000 && (v.startsWith('data:audio') || v.startsWith('data:image') || v.startsWith('data:application'))) {
+              return ''; // Omit large base64 strings in localStorage cache
+            }
+            return v;
+          }));
+          localStorage.setItem(key, JSON.stringify(sanitized));
+        }
+      } catch {
+        // Quota exceeded handled safely without console spam
+      }
     }
   }
 
@@ -612,11 +635,10 @@ class LocalDB {
     try {
       const { error } = await supabase.from("settings").upsert({
         id: "global",
-        data: settings,
-        updatedAt: new Date().toISOString()
+        data: settings
       });
       if (error) {
-        console.error("Direct Supabase settings upsert error:", error);
+        console.warn("Direct Supabase settings upsert note (syncing via API instead):", error.message || error);
       }
     } catch (e) {
       console.warn("Could not sync settings to Supabase client:", e);

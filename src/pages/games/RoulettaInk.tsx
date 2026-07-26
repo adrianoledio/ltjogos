@@ -189,7 +189,13 @@ export function RoulettaInk() {
 
   // Start casino audio on mount
   useEffect(() => {
-    playGameMusic('casino_music');
+    const fetchMusic = async () => {
+      const g = await db.getGame('rouletta-ink');
+      if (g && g.bgMusic) {
+        playGameMusic(g.bgMusic);
+      }
+    };
+    fetchMusic();
     return () => stopGameMusic();
   }, []);
 

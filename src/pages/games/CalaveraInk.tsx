@@ -520,6 +520,15 @@ export function CalaveraInk() {
     initGame();
   }, []);
 
+  useEffect(() => {
+    if (gameConfig && gameConfig.bgMusic) {
+      playGameMusic(gameConfig.bgMusic);
+    }
+    return () => {
+      stopGameMusic();
+    };
+  }, [gameConfig]);
+
   // Handle auto-spins
   useEffect(() => {
     if (autoPlay && autoSpinsLeft > 0 && !isSpinning && !freeSpinsActive) {
@@ -530,7 +539,7 @@ export function CalaveraInk() {
     } else if (autoPlay && autoSpinsLeft === 0) {
       setAutoPlay(false);
     }
-  }, [autoPlay, autoSpinsLeft, isSpinning]);
+  }, [autoPlay, autoSpinsLeft, isSpinning, freeSpinsActive]);
 
   // Handle Free Spins Autoplay loop
   useEffect(() => {
@@ -542,9 +551,12 @@ export function CalaveraInk() {
     } else if (freeSpinsActive && freeSpins === 0 && !isSpinning) {
       // Free Spins Finished!
       setFreeSpinsActive(false);
-      setShowBigWin(true); // Show final total winnings
+      if (totalFreeSpinWin > 0) {
+        setShowBigWin(true);
+        triggerBigWinConfetti();
+      }
     }
-  }, [freeSpinsActive, freeSpins, isSpinning]);
+  }, [freeSpinsActive, freeSpins, isSpinning, totalFreeSpinWin]);
 
   // Generate target outcome
   const generateGrid = (currentTarget: number): string[][] => {
@@ -605,7 +617,7 @@ export function CalaveraInk() {
   };
 
   // Perform cascading slide-down and populate new symbols
-  const processCascade = async (currentGrid: string[][], previousWins: {r: number; c: number}[]) => {
+  const processCascade = async (currentGrid: string[][], previousWins: {r: number; c: number}[], currentAccumulatedWin = 0) => {
     playSfx('click');
 
     // 1. Mark golden-framed winning positions as WILD, others as null
@@ -666,7 +678,7 @@ export function CalaveraInk() {
 
     // Evaluate again
     setTimeout(() => {
-      evaluateCascadeWins(finalNewGrid);
+      evaluateCascadeWins(finalNewGrid, currentAccumulatedWin);
     }, 400);
   };
 
@@ -679,6 +691,10 @@ export function CalaveraInk() {
       setAutoPlay(false);
       alert('Saldo insuficiente para realizar a aposta.');
       return;
+    }
+
+    if (freeSpinsActive) {
+      setFreeSpins(prev => Math.max(0, prev - 1));
     }
 
     setIsSpinning(true);
@@ -735,14 +751,14 @@ export function CalaveraInk() {
         playSfx('click');
 
         if (idx === COLS - 1) {
-          evaluateCascadeWins(finalGrid);
+          evaluateCascadeWins(finalGrid, 0);
         }
       }, delay);
     });
   };
 
   // Evaluate wins inside cascade
-  const evaluateCascadeWins = async (currentGrid: string[][]) => {
+  const evaluateCascadeWins = async (currentGrid: string[][], currentAccumulatedWin = 0) => {
     const PAYTABLE: Record<string, number[]> = {
       'SKULL': [0, 0, 0, 3.0, 6.0, 15.0],
       'GUN': [0, 0, 0, 2.5, 5.0, 10.0],
@@ -812,8 +828,9 @@ export function CalaveraInk() {
     });
 
     if (totalSpinWin > 0) {
+      const newAccumulated = currentAccumulatedWin + totalSpinWin;
       setWinningPositions(newWinningPositions);
-      setWinAmount(prev => prev + totalSpinWin);
+      setWinAmount(newAccumulated);
 
       if (user) {
         await updateBalance(totalSpinWin, 'win', 'calavera-ink', { winningPositions: newWinningPositions });
@@ -834,7 +851,7 @@ export function CalaveraInk() {
           return prev + 2; // Increments to 5, then 7, etc.
         });
         
-        processCascade(currentGrid, newWinningPositions);
+        processCascade(currentGrid, newWinningPositions, newAccumulated);
       }, 1000);
 
     } else {
@@ -851,8 +868,8 @@ export function CalaveraInk() {
         setAutoPlay(false);
       }
 
-      if (winAmount > 0) {
-        if (winAmount >= baseBet * 20) {
+      if (currentAccumulatedWin > 0) {
+        if (currentAccumulatedWin >= baseBet * 20) {
           setShowBigWin(true);
           setIsShaking(true);
           triggerBigWinConfetti();
@@ -1198,7 +1215,12 @@ export function CalaveraInk() {
       {/* Floating win celebrations and Big wins overlay */}
       <AnimatePresence>
         {showWinCelebration && <WinCelebrationIndicator amount={winAmount} />}
-        {showBigWin && <BigWinScreen amount={winAmount} onClose={() => { setShowBigWin(false); setIsShaking(false); }} />}
+        {showBigWin && (
+          <BigWinScreen
+            amount={!freeSpinsActive && totalFreeSpinWin > 0 && winAmount === 0 ? totalFreeSpinWin : winAmount}
+            onClose={() => { setShowBigWin(false); setIsShaking(false); }}
+          />
+        )}
       </AnimatePresence>
 
       <ConfirmExitModal
