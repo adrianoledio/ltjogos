@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendDepositNotificationEmail } from "../lib/sendDepositEmail";
+import { getValidSupabaseCredentials } from "../../src/lib/supabase";
 
 export async function approvePendingTx(supabase: any, tx: any, settings: any) {
   if (tx.status === 'completed') return true;
@@ -51,14 +52,13 @@ export async function approvePendingTx(supabase: any, tx: any, settings: any) {
 }
 
 export async function syncAllPendingDeposits() {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+  const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
 
   if (!supabaseUrl || !supabaseKey) {
     return { approvedCount: 0, error: "Supabase not configured" };
   }
 
-  const supabase = createClient(supabaseUrl.startsWith("http") ? supabaseUrl : `https://${supabaseUrl}`, supabaseKey);
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   // 1. Get settings for mpAccessToken
   const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
@@ -149,14 +149,13 @@ export async function verifyAndApprovePayment(paymentId: string | number, txId?:
   // Always trigger a sync of all pending deposits
   await syncAllPendingDeposits().catch(e => console.warn("syncAllPendingDeposits error:", e));
 
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+  const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
 
   if (!supabaseUrl || !supabaseKey) {
     return { approved: false, reason: "Supabase not configured" };
   }
 
-  const supabase = createClient(supabaseUrl.startsWith("http") ? supabaseUrl : `https://${supabaseUrl}`, supabaseKey);
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   let query = supabase.from("transactions").select("*").eq("type", "deposit");
   if (txId) {

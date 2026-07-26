@@ -4,33 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
 import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status.js";
+import { getValidSupabaseCredentials } from "./src/lib/supabase.js";
 
 // Supabase Configuration
-let supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-// Prioritize SECRET_KEY for full server database authorization, then PUBLISHABLE_KEY, then VITE_SUPABASE_ANON_KEY
-const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const { url: validServerUrl, key: validServerKey } = getValidSupabaseCredentials();
 
-if (supabaseUrl && !supabaseUrl.startsWith("http")) {
-  supabaseUrl = `https://${supabaseUrl}`;
-}
-
-if (!supabaseUrl || !supabaseKey) {
-  console.warn("CRITICAL: Supabase configuration is missing!");
-  console.warn("Please ensure SUPABASE_URL and either SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY are configured in your environment.");
-} else {
-  try {
-    const url = new URL(supabaseUrl);
-    console.log("Supabase URL configured:", url.hostname);
-    if (!url.hostname.includes("supabase.co")) {
-      console.warn("WARNING: Supabase URL might be incorrect (should normally be [id].supabase.co):", url.hostname);
-    }
-  } catch (e) {
-    console.warn("CRITICAL: Supabase URL is not a valid URL:", supabaseUrl);
-  }
-}
-
-const validServerUrl = (supabaseUrl && (supabaseUrl.startsWith("http://") || supabaseUrl.startsWith("https://"))) ? supabaseUrl : "https://placeholder.supabase.co";
-const validServerKey = supabaseKey || "placeholder-key";
+console.log("Supabase initialized with URL:", validServerUrl);
 const supabase = createClient(validServerUrl, validServerKey);
 
 // Test and Seed Supabase connection on startup
