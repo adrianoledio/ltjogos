@@ -119,6 +119,8 @@ export function HeroCarousel() {
                 src={currentSlide.image}
                 alt={currentSlide.title}
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
                 onError={() => setImgErrors(prev => ({ ...prev, [currentSlide.id]: true }))}
               />

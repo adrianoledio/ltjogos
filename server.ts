@@ -308,10 +308,26 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         phone: phone || null
       };
       let { error } = await supabase.from("users").upsert(payload);
-      if (error && error.message?.toLowerCase().includes("lastloginbonusdate")) {
+      if (error && (error.message?.toLowerCase().includes("column") || error.message?.toLowerCase().includes("does not exist") || error.message?.toLowerCase().includes("schema"))) {
         delete payload.lastLoginBonusDate;
+        delete payload.phone;
         const res2 = await supabase.from("users").upsert(payload);
         error = res2.error;
+        if (error && error.message?.toLowerCase().includes("column")) {
+          // If still error, retry with minimal safe columns
+          const minimalPayload = {
+            id: payload.id,
+            name: payload.name,
+            email: payload.email,
+            password: payload.password,
+            role: payload.role,
+            balance: payload.balance,
+            earnings: payload.earnings,
+            createdAt: payload.createdAt
+          };
+          const res3 = await supabase.from("users").upsert(minimalPayload);
+          error = res3.error;
+        }
       }
       if (error) {
         console.error("Supabase error saving user:", error);

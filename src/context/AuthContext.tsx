@@ -21,15 +21,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [dailyBonusPopup, setDailyBonusPopup] = useState<{ isOpen: boolean; amount: number }>({ isOpen: false, amount: 0 });
 
   const checkDailyLoginBonus = async (u: User) => {
-    const now = Date.now();
-    const lastClaim = u.lastLoginBonusDate ? new Date(u.lastLoginBonusDate).getTime() : 0;
-    const twentyFourHours = 24 * 60 * 60 * 1000;
+    const today = new Date().toISOString().split('T')[0];
 
-    if (!u.lastLoginBonusDate || (now - lastClaim >= twentyFourHours)) {
+    if (u.lastLoginBonusDate !== today) {
       const randomCents = Math.floor(Math.random() * 91) + 10; // 10 to 100 cents (0.10 to 1.00)
       const bonusAmount = randomCents / 100;
       u.balance += bonusAmount;
-      u.lastLoginBonusDate = new Date().toISOString();
+      u.lastLoginBonusDate = today;
       await db.updateUser(u);
 
       await db.addTransaction({

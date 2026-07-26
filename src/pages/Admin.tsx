@@ -712,7 +712,7 @@ export function Admin() {
                   <div className="flex items-center gap-2">
                     <div className={`w-10 h-10 rounded-lg overflow-hidden border shrink-0 shadow-lg ${theme === 'dark' ? 'bg-black/50 border-white/10' : 'bg-white border-gray-100'}`}>
                       {game.thumbnail ? (
-                        <img src={game.thumbnail} alt={game.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={game.thumbnail} alt={game.name} className="w-full h-full object-cover" loading="lazy" decoding="async" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-white/30 text-[6px]">Sem Img</div>
                       )}

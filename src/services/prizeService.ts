@@ -28,11 +28,12 @@ export class PrizeService {
     // 1. Select tier based on weights (boosted for partners)
     const selectedTier = this.selectTierByWeight(gamePrizeConfig.premios, user.role === 'partner');
     
-    // 2. Randomize value within tier
+    // 2. Randomize value within tier and enforce 1000 max prize per player limit
     let prizeAmount = Math.floor(Math.random() * (selectedTier.premioMax - selectedTier.premioMin + 1)) + selectedTier.premioMin;
+    prizeAmount = Math.min(prizeAmount, 1000);
 
-    // 3. Apply User Daily Limit (Partners have 5x higher limit)
-    const userLimit = user.role === 'partner' ? settings.limiteUsuarioDiario * 5 : settings.limiteUsuarioDiario;
+    // 3. Apply User Daily Limit (Partners have 5x higher limit, capped at 1000)
+    const userLimit = Math.min(user.role === 'partner' ? settings.limiteUsuarioDiario * 5 : settings.limiteUsuarioDiario, 1000);
     const userRemaining = userLimit - user.dailyPrizeTotal;
     if (prizeAmount > userRemaining) {
       prizeAmount = Math.max(0, userRemaining);

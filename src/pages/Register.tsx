@@ -40,20 +40,10 @@ export function Register() {
         {/* Persuasive Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-black tracking-tighter text-white mb-2">
-            CRIE SUA CONTA E <span className="text-brand-primary">GANHE</span>
+            CRIE SUA <span className="text-brand-primary">CONTA</span>
           </h1>
           <p className="text-white/60 text-[11px] font-black uppercase tracking-[0.2em]">
-            + Bônus de até 75% no 1º depósito!
-          </p>
-        </div>
-
-        {/* Promo Banner */}
-        <div className="bg-gradient-to-br from-purple-900/40 to-black/40 border border-brand-primary/30 rounded-2xl p-4 mb-6 shadow-[0_4px_25px_rgba(255,204,0,0.1)] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-brand-primary/20 flex items-center justify-center shrink-0 animate-pulse">
-            <Gift className="text-brand-primary" size={20} />
-          </div>
-          <p className="text-[10px] text-white/80 leading-snug">
-            Cadastre-se agora e garanta seu bônus de boas-vindas. Depósitos acima de R$ 200 recebem <strong className="text-brand-primary font-black">+75% EXTRA!</strong>
+            Acesse seus jogos favoritos
           </p>
         </div>
 
@@ -103,7 +93,7 @@ export function Register() {
               type="submit"
               className="w-full bg-brand-primary text-surface-dark font-display font-black py-5 rounded-2xl text-sm uppercase tracking-[0.25em] transition-all duration-300 shadow-[0_4px_25px_rgba(255,204,0,0.2)] hover:shadow-[0_4px_35px_rgba(255,204,0,0.35)] flex items-center justify-center gap-2 mt-2"
             >
-              <Zap size={16} /> CADASTRAR E GANHAR BÔNUS
+              <Zap size={16} /> CADASTRAR
             </button>
           </form>
 

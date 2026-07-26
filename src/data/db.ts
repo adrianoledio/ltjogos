@@ -319,11 +319,16 @@ class LocalDB {
       try {
         const { data, error } = await supabase.from('users').select('*');
         if (!error && Array.isArray(data) && data.length > 0) {
-          const formatted = data.map((u: any) => ({
-            ...u,
-            unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
-            referralCounted: !!u.referralCounted
-          }));
+          const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
+          const formatted = data.map((u: any) => {
+            const localUser = cachedMap.get(u.id);
+            return {
+              ...u,
+              lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined,
+              unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
+              referralCounted: !!u.referralCounted
+            };
+          });
           this.setStorageItem('lt_users', formatted);
           return;
         }
@@ -336,7 +341,15 @@ class LocalDB {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            this.setStorageItem('lt_users', data);
+            const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
+            const formatted = data.map((u: any) => {
+              const localUser = cachedMap.get(u.id);
+              return {
+                ...u,
+                lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
+              };
+            });
+            this.setStorageItem('lt_users', formatted);
           }
         }
       } catch (e) {
@@ -390,10 +403,25 @@ class LocalDB {
         phone: updatedUser.phone || null
       };
       let { error } = await supabase.from('users').upsert(payload);
-      if (error && error.message?.toLowerCase().includes("lastloginbonusdate")) {
+      if (error && (error.message?.toLowerCase().includes("column") || error.message?.toLowerCase().includes("does not exist") || error.message?.toLowerCase().includes("schema"))) {
         delete payload.lastLoginBonusDate;
+        delete payload.phone;
         const res2 = await supabase.from('users').upsert(payload);
         error = res2.error;
+        if (error && error.message?.toLowerCase().includes("column")) {
+          const minimalPayload = {
+            id: payload.id,
+            name: payload.name,
+            email: payload.email,
+            password: payload.password,
+            role: payload.role,
+            balance: payload.balance,
+            earnings: payload.earnings,
+            createdAt: payload.createdAt
+          };
+          const res3 = await supabase.from('users').upsert(minimalPayload);
+          error = res3.error;
+        }
       }
       if (error) {
         console.error("Direct Supabase user upsert error:", error);
@@ -655,6 +683,17 @@ class LocalDB {
   }
 
   async saveSettings(settings: SystemSettings) {
+    settings.limiteUsuarioDiario = Math.min(settings.limiteUsuarioDiario || 1000, 1000);
+    if (settings.gamePrizes) {
+      settings.gamePrizes = settings.gamePrizes.map(gp => ({
+        ...gp,
+        premios: gp.premios.map(p => ({
+          ...p,
+          premioMax: Math.min(p.premioMax, 1000),
+          premioMin: Math.min(p.premioMin, 1000)
+        }))
+      }));
+    }
     this.setStorageItem('lt_settings', settings);
 
     // Direct Supabase upsert ALWAYS
