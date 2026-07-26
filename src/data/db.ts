@@ -508,7 +508,8 @@ class LocalDB {
       try {
         const { data, error } = await supabase.from('games').select('*');
         if (!error && Array.isArray(data) && data.length > 0) {
-          this.setStorageItem('lt_games', data);
+          const formatted = data.map(g => ({ ...g, active: !!g.active, featured: !!g.featured }));
+          this.setStorageItem('lt_games', formatted);
           return;
         }
       } catch (e) {
@@ -542,7 +543,7 @@ class LocalDB {
     const games = this.getStorageItem<GameConfig[]>('lt_games', []);
     const index = games.findIndex(g => g.id === updatedGame.id);
     if (index !== -1) {
-      games[index] = updatedGame;
+      games[index] = { ...games[index], ...updatedGame };
     } else {
       games.push(updatedGame);
     }
@@ -550,7 +551,7 @@ class LocalDB {
 
     // Direct Supabase upsert ALWAYS
     try {
-      const { error } = await supabase.from('games').upsert({
+      const payload: any = {
         id: updatedGame.id,
         name: updatedGame.name,
         active: updatedGame.active ? true : false,
@@ -561,8 +562,15 @@ class LocalDB {
         bgPage: updatedGame.bgPage || '',
         bgContainer: updatedGame.bgContainer || '',
         bgMusic: updatedGame.bgMusic || '',
-        category: updatedGame.category || 'slots'
-      });
+        category: updatedGame.category || 'slots',
+        featured: updatedGame.featured ? true : false,
+      };
+      let { error } = await supabase.from('games').upsert(payload);
+      if (error && error.message?.toLowerCase().includes("featured")) {
+        delete payload.featured;
+        const res2 = await supabase.from('games').upsert(payload);
+        error = res2.error;
+      }
       if (error) {
         console.error("Direct Supabase game upsert error:", error);
       }

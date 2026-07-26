@@ -85,19 +85,6 @@ async function testAndSeedSupabase() {
       console.log("Seeding missing DEFAULT_GAMES to Supabase...");
       const DEFAULT_GAMES = [
         {
-          id: 'mystic-ink',
-          name: 'Mystic Ink',
-          active: true,
-          minBet: 1,
-          maxBet: 100,
-          rtp: 95,
-          thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
-          bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
-          bgContainer: 'rgba(0,0,0,0.8)',
-          bgMusic: '',
-          category: 'slots',
-        },
-        {
           id: 'wild-tattoo',
           name: 'Wild Tattoo',
           active: true,
@@ -109,6 +96,7 @@ async function testAndSeedSupabase() {
           bgContainer: '',
           bgMusic: '',
           category: 'slots',
+          featured: true,
         },
         {
           id: 'calavera-ink',
@@ -122,6 +110,21 @@ async function testAndSeedSupabase() {
           bgContainer: '',
           bgMusic: '',
           category: 'slots',
+          featured: true,
+        },
+        {
+          id: 'mystic-ink',
+          name: 'Mystic Ink',
+          active: true,
+          minBet: 1,
+          maxBet: 100,
+          rtp: 95,
+          thumbnail: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=800&auto=format&fit=crop',
+          bgPage: 'https://images.unsplash.com/photo-1605806616949-1e87b487bc2a?q=80&w=1920&auto=format&fit=crop',
+          bgContainer: 'rgba(0,0,0,0.8)',
+          bgMusic: '',
+          category: 'slots',
+          featured: true,
         },
         {
           id: 'tattoo-cash',
@@ -135,6 +138,7 @@ async function testAndSeedSupabase() {
           bgContainer: '',
           bgMusic: '',
           category: 'slots',
+          featured: true,
         },
         {
           id: 'tattoo-slot',
@@ -193,7 +197,12 @@ async function testAndSeedSupabase() {
       for (const g of DEFAULT_GAMES) {
         if (!existingIds.has(g.id)) {
           console.log(`Seeding game ${g.id} to Supabase...`);
-          await supabase.from("games").upsert(g);
+          const { error } = await supabase.from("games").upsert(g);
+          if (error && error.message?.toLowerCase().includes("featured")) {
+            const copy: any = { ...g };
+            delete copy.featured;
+            await supabase.from("games").upsert(copy);
+          }
         }
       }
 
@@ -318,7 +327,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         console.error("Supabase error fetching games:", error);
         return res.status(500).json({ error: error.message });
       }
-      res.json((data || []).map((g: any) => ({ ...g, active: !!g.active })));
+      res.json((data || []).map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured })));
     } catch (error: any) {
       console.error("Network error fetching games:", error.message || error);
       res.json([]);
@@ -327,10 +336,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.post("/api/games", async (req, res) => {
     try {
-      const { id, name, active, minBet, maxBet, rtp, thumbnail, bgPage, bgContainer, bgMusic, category } = req.body;
-      const { error } = await supabase.from("games").upsert({
-        id, name, active: !!active, minBet, maxBet, rtp, thumbnail, bgPage, bgContainer, bgMusic, category
-      });
+      const { id, name, active, minBet, maxBet, rtp, thumbnail, bgPage, bgContainer, bgMusic, category, featured } = req.body;
+      const payload: any = {
+        id, name, active: !!active, minBet, maxBet, rtp, thumbnail, bgPage, bgContainer, bgMusic, category, featured: !!featured
+      };
+      let { error } = await supabase.from("games").upsert(payload);
+      if (error && error.message?.toLowerCase().includes("featured")) {
+        delete payload.featured;
+        const res2 = await supabase.from("games").upsert(payload);
+        error = res2.error;
+      }
       if (error) {
         console.error("Supabase error saving game:", error);
         return res.status(400).json({ error: error.message });

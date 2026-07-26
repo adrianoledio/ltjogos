@@ -12,7 +12,7 @@ import {
   Sun, Moon, Plus, ArrowDownToLine, Trash2, Send,
   TrendingUp, BarChart3, PieChart as PieChartIcon,
   AlertCircle, RefreshCw, Download, Filter, Search,
-  Target
+  Target, Flame
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -720,32 +720,60 @@ export function Admin() {
                     <div className="flex-1 min-w-0">
                       <h3 className={`text-[10px] font-black truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{game.name}</h3>
                       <p className={`text-[6px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>{game.category}</p>
-                      <button
-                        onClick={async () => {
-                          const newActiveState = !game.active;
-                          const newGames = games.map(g => g.id === game.id ? { ...g, active: newActiveState } : g);
-                          setGames(newGames);
-                          
-                          // Proactively try to save the toggle
-                          const updatedGame = { ...game, active: newActiveState };
-                          try {
-                            await db.updateGame(updatedGame);
-                            toast.success(`Jogo ${game.name} ${newActiveState ? 'ativado' : 'desativado'}!`);
-                          } catch (error) {
-                            console.error("Error toggling game status:", error);
-                            // Revert on failure
-                            setGames(games);
-                            toast.error(`Erro ao mudar status do jogo ${game.name}`);
-                          }
-                        }}
-                        className={`mt-1 px-1 py-0.5 rounded-md text-[6px] font-black uppercase tracking-widest flex items-center gap-1 w-max transition-all ${
-                          game.active 
-                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
-                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
-                        }`}
-                      >
-                        {game.active ? <><CheckCircle size={7} /> Ativo</> : <><XCircle size={7} /> Inativo</>}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        <button
+                          onClick={async () => {
+                            const newActiveState = !game.active;
+                            const newGames = games.map(g => g.id === game.id ? { ...g, active: newActiveState } : g);
+                            setGames(newGames);
+                            
+                            // Proactively try to save the toggle
+                            const updatedGame = { ...game, active: newActiveState };
+                            try {
+                              await db.updateGame(updatedGame);
+                              toast.success(`Jogo ${game.name} ${newActiveState ? 'ativado' : 'desativado'}!`);
+                            } catch (error) {
+                              console.error("Error toggling game status:", error);
+                              // Revert on failure
+                              setGames(games);
+                              toast.error(`Erro ao mudar status do jogo ${game.name}`);
+                            }
+                          }}
+                          className={`px-1 py-0.5 rounded-md text-[6px] font-black uppercase tracking-widest flex items-center gap-1 transition-all ${
+                            game.active 
+                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+                              : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                          }`}
+                        >
+                          {game.active ? <><CheckCircle size={7} /> Ativo</> : <><XCircle size={7} /> Inativo</>}
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            const newFeaturedState = !game.featured;
+                            const newGames = games.map(g => g.id === game.id ? { ...g, featured: newFeaturedState } : g);
+                            setGames(newGames);
+                            
+                            const updatedGame = { ...game, featured: newFeaturedState };
+                            try {
+                              await db.updateGame(updatedGame);
+                              toast.success(`Jogo ${game.name} ${newFeaturedState ? 'marcado como Destaque' : 'removido dos Destaques'}!`);
+                            } catch (error) {
+                              console.error("Error toggling game featured status:", error);
+                              setGames(games);
+                              toast.error(`Erro ao mudar destaque de ${game.name}`);
+                            }
+                          }}
+                          className={`px-1 py-0.5 rounded-md text-[6px] font-black uppercase tracking-widest flex items-center gap-1 transition-all ${
+                            game.featured 
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm font-bold' 
+                              : 'bg-white/5 text-white/40 border border-white/10 hover:text-amber-400'
+                          }`}
+                        >
+                          <Flame size={7} className={game.featured ? 'fill-amber-400 text-amber-400' : ''} />
+                          {game.featured ? 'Destaque' : 'Normal'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   

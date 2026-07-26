@@ -134,7 +134,7 @@ export function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  const featuredGames = games.filter(g => g.featured || ['wild-tattoo', 'calavera-ink', 'tattoo-cash', 'mystic-ink'].includes(g.id));
+  const featuredGames = games.filter(g => Boolean(g.featured));
 
   const categoryFiltered = activeCategory === 'all' 
     ? games 
