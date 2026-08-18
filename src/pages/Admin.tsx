@@ -295,6 +295,17 @@ export function Admin() {
     } catch (err) {
       console.warn("Could not notify deposit email:", err);
     }
+
+    // Check if deposit exceeds admin alert threshold
+    const sysSettings = await db.getSettings();
+    const alertThreshold = sysSettings?.adminDepositAlertThreshold || 100;
+    if (tx.amount >= alertThreshold) {
+      await db.addNotification({
+        title: `🚨 Alerta: Depósito Alto (R$ ${tx.amount.toFixed(2)})`,
+        message: `Depósito de R$ ${tx.amount.toFixed(2)} aprovado para ${targetUser.name || targetUser.email}.`,
+        type: 'success'
+      });
+    }
     
     setTransactions(await db.getTransactions());
     setUsers(await db.getUsers());
@@ -1611,6 +1622,19 @@ export function Admin() {
                       type="number"
                       value={settings.limiteUsuarioDiario || 100}
                       onChange={(e) => setSettings({ ...settings, limiteUsuarioDiario: parseFloat(e.target.value) })}
+                      className={`w-full rounded-lg px-2 py-1.5 text-[10px] font-black transition-all outline-none border ${
+                        theme === 'dark' 
+                          ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' 
+                          : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
+                      }`}
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Alerta Depósito Alto X (R$)</label>
+                    <input
+                      type="number"
+                      value={settings.adminDepositAlertThreshold || 100}
+                      onChange={(e) => setSettings({ ...settings, adminDepositAlertThreshold: parseFloat(e.target.value) })}
                       className={`w-full rounded-lg px-2 py-1.5 text-[10px] font-black transition-all outline-none border ${
                         theme === 'dark' 
                           ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' 

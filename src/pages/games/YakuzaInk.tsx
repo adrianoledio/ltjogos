@@ -622,8 +622,8 @@ export function YakuzaInk() {
         dblWin = true;
       }
 
-      // STRICT CAP BY TARGET
-      if (finalWinSum > currentTarget) {
+      // STRICT CAP BY TARGET (only when target active > 0)
+      if (currentTarget > 0 && finalWinSum > currentTarget) {
         finalWinSum = currentTarget;
       }
 
@@ -639,8 +639,8 @@ export function YakuzaInk() {
         playSfx('win');
         if (finalWinSum >= totalBet * 15) {
           triggerBigWinConfetti();
-        } else {
-          triggerWinConfetti();
+        } else if (finalWinSum > totalBet) {
+          triggerWinConfetti(finalWinSum, totalBet);
         }
         await updateBalance(finalWinSum, 'win', 'yakuza-ink', {
           tigerWin: calculatedTigerWin,

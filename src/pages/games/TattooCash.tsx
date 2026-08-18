@@ -343,7 +343,7 @@ export function TattooCash() {
 
         if (currentWin > 0) {
           // STRICT CAP BY TARGET
-          if (currentWin > target) {
+          if (target > 0 && currentWin > target) {
             currentWin = target;
           }
 
@@ -366,9 +366,9 @@ export function TattooCash() {
           if (currentWin >= bet * 20) {
             setShowBigWin(true);
             triggerBigWinConfetti();
-          } else {
+          } else if (currentWin > bet) {
             setShowWinModal(true);
-            triggerWinConfetti();
+            triggerWinConfetti(currentWin, bet);
           }
         }
 

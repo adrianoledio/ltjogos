@@ -367,8 +367,8 @@ export function InkReveal() {
       playSfx('win');
       if (winAmount >= bet * 10) {
         triggerBigWinConfetti();
-      } else {
-        triggerWinConfetti();
+      } else if (winAmount > bet) {
+        triggerWinConfetti(winAmount, bet);
       }
       setTimeout(() => {
         setShowWinModal(true);
@@ -808,7 +808,7 @@ function ScratchOverlay({ cellId, onReveal, isScratchingAll }: ScratchOverlayPro
     isDrawing.current = true;
     
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || typeof canvas.getBoundingClientRect !== 'function') return;
     const rect = canvas.getBoundingClientRect();
 
     let clientX = 0;
@@ -842,7 +842,7 @@ function ScratchOverlay({ cellId, onReveal, isScratchingAll }: ScratchOverlayPro
   const scratch = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing.current || revealedTriggered.current) return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || typeof canvas.getBoundingClientRect !== 'function') return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 

@@ -118,21 +118,6 @@ export function Home() {
       setRunTour(true);
     }
 
-    // Check daily bonus
-    const today = new Date().toISOString().split('T')[0];
-    const bonusNotified = localStorage.getItem(`bonusNotified_${today}`);
-    const checkBonus = async () => {
-      const storedUserId = localStorage.getItem('lt_active_user');
-      if (storedUserId) {
-        const user = await db.getUser(storedUserId);
-        if (user && user.lastPrizeDate !== today && !bonusNotified) {
-          showNotification("Bônus Diário", "Seu bônus diário está disponível!");
-          localStorage.setItem(`bonusNotified_${today}`, 'true');
-        }
-      }
-    };
-    checkBonus();
-
     return () => clearInterval(interval);
   }, []);
 

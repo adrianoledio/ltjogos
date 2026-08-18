@@ -817,9 +817,11 @@ export function CalaveraInk() {
           let cashWin = baseBet * payoutVal * ways * (freeSpinsActive ? freeSpinsMultiplier : multiplier);
           
           // CAP BY TARGET
-          const remainingCap = targetCap - currentAccumulatedWin - totalSpinWin;
-          if (cashWin > remainingCap) {
-            cashWin = Math.max(0, remainingCap);
+          if (targetCap > 0) {
+            const remainingCap = targetCap - currentAccumulatedWin - totalSpinWin;
+            if (cashWin > remainingCap) {
+              cashWin = Math.max(0, remainingCap);
+            }
           }
           
           totalSpinWin += cashWin;
@@ -880,9 +882,9 @@ export function CalaveraInk() {
           setShowBigWin(true);
           setIsShaking(true);
           triggerBigWinConfetti();
-        } else {
+        } else if (currentAccumulatedWin > baseBet) {
           setShowWinCelebration(true);
-          triggerWinConfetti();
+          triggerWinConfetti(currentAccumulatedWin, baseBet);
         }
       }
 

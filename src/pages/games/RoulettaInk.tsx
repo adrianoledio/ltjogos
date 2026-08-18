@@ -278,7 +278,7 @@ export function RoulettaInk() {
     }
     
     // STRICT CAP BY TARGET
-    if (actualPayout > targetPrize) {
+    if (targetPrize > 0 && actualPayout > targetPrize) {
       actualPayout = targetPrize;
     }
 
@@ -332,9 +332,9 @@ export function RoulettaInk() {
         if (actualPayout >= bet * 15) {
           setShowBigWin(true);
           triggerBigWinConfetti();
-        } else {
+        } else if (actualPayout > bet) {
           setShowWinModal(true);
-          triggerWinConfetti();
+          triggerWinConfetti(actualPayout, bet);
         }
 
         // Prepare Double or Nothing gamble opportunity

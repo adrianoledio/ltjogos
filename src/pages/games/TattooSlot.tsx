@@ -910,9 +910,11 @@ export function TattooSlot() {
           let cashWin = baseBet * payoutMultiplier * ways * winMultiplier;
           
           // CAP BY TARGET
-          const remainingCap = targetCap - totalWin;
-          if (cashWin > remainingCap) {
-            cashWin = Math.max(0, remainingCap);
+          if (targetCap > 0) {
+            const remainingCap = targetCap - totalWin;
+            if (cashWin > remainingCap) {
+              cashWin = Math.max(0, remainingCap);
+            }
           }
 
           totalWin += cashWin;
@@ -937,9 +939,9 @@ export function TattooSlot() {
         setShowBigWin(true);
         setIsShaking(true);
         triggerBigWinConfetti();
-      } else {
+      } else if (totalWin > baseBet) {
         setShowWinCelebration(true);
-        triggerWinConfetti();
+        triggerWinConfetti(totalWin, baseBet);
       }
 
       if (user) {

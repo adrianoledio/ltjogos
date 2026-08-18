@@ -22,23 +22,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkDailyLoginBonus = async (u: User) => {
     const today = new Date().toISOString().split('T')[0];
+    if (u.lastLoginBonusDate === today) return;
 
-    if (u.lastLoginBonusDate !== today) {
-      const randomCents = Math.floor(Math.random() * 91) + 10; // 10 to 100 cents (0.10 to 1.00)
-      const bonusAmount = randomCents / 100;
-      u.balance += bonusAmount;
-      u.lastLoginBonusDate = today;
-      await db.updateUser(u);
+    try {
+      const txs = await db.getTransactions();
+      const hasDeposited = txs.some(t => t.userId === u.id && t.type === 'deposit');
 
-      await db.addTransaction({
-        userId: u.id,
-        amount: bonusAmount,
-        type: 'win',
-        status: 'completed',
-        metadata: { note: 'Bônus de Login Diário' }
-      });
+      if (hasDeposited) {
+        const randomCents = Math.floor(Math.random() * 91) + 10; // 0.10 to 1.00
+        const bonusAmount = randomCents / 100;
+        u.balance += bonusAmount;
+        u.lastLoginBonusDate = today;
+        await db.updateUser(u);
 
-      setDailyBonusPopup({ isOpen: true, amount: bonusAmount });
+        await db.addTransaction({
+          userId: u.id,
+          amount: bonusAmount,
+          type: 'win',
+          status: 'completed',
+          metadata: { note: 'Bônus de Login Diário' }
+        });
+
+        setDailyBonusPopup({ isOpen: true, amount: bonusAmount });
+      }
+    } catch (e) {
+      console.error("Error checking daily login bonus:", e);
     }
   };
 

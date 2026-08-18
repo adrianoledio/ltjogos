@@ -757,9 +757,11 @@ export function MysticInk() {
                     let winAmount = bet * payoutMultiplier * ways * finalMult * currentMultiplier;
                     
                     // CAP BY TARGET
-                    const remainingCap = currentTarget - totalWin;
-                    if (winAmount > remainingCap) {
-                      winAmount = Math.max(0, remainingCap);
+                    if (currentTarget > 0) {
+                      const remainingCap = currentTarget - totalWin;
+                      if (winAmount > remainingCap) {
+                        winAmount = Math.max(0, remainingCap);
+                      }
                     }
 
                     totalWin += winAmount;
@@ -782,9 +784,9 @@ export function MysticInk() {
                   setShowBigWin(true);
                   setIsShaking(true);
                   triggerBigWinConfetti();
-                } else {
+                } else if (totalWin > bet) {
                   setShowWinModal(true);
-                  triggerWinConfetti();
+                  triggerWinConfetti(totalWin, bet);
                 }
 
                 if (user) {

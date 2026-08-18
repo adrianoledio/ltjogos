@@ -804,6 +804,22 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
                         } catch (emailErr) {
                           console.warn("Error sending deposit notification email in server.ts:", emailErr);
                         }
+
+                        // Check high deposit alert threshold
+                        const alertThreshold = settings?.adminDepositAlertThreshold || 100;
+                        if (tx.amount >= alertThreshold) {
+                          try {
+                            await supabase.from("notifications").insert({
+                              id: 'notif_' + Date.now() + Math.random().toString(36).substring(2, 7),
+                              title: `🚨 Alerta: Depósito Alto (R$ ${tx.amount.toFixed(2)})`,
+                              message: `Depósito de R$ ${tx.amount.toFixed(2)} confirmado via Mercado Pago para ${user.name || user.email}.`,
+                              type: 'success',
+                              createdAt: new Date().toISOString()
+                            });
+                          } catch (notifErr) {
+                            console.warn("Error creating high deposit notification:", notifErr);
+                          }
+                        }
                       }
 
                       console.log(`Payment ${paymentId} approved and processed for user ${tx.userId}`);

@@ -91,6 +91,7 @@ export interface SystemSettings {
   minPrize?: number;
   maxPrize?: number;
   prizeTiers?: Array<{ min: number; max: number; weight: number }>;
+  adminDepositAlertThreshold?: number;
 }
 
 export interface Notification {
@@ -245,6 +246,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   platformDailyPrizeTotal: 0,
   lastPlatformPrizeDate: new Date().toISOString().split('T')[0],
   mpAccessToken: '',
+  adminDepositAlertThreshold: 100,
   gamePrizes: [
     {
       gameId: 'slots',

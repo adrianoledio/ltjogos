@@ -1,15 +1,16 @@
 /**
- * Confetti animations disabled site-wide per request.
+ * Confetti animations disabled per user request.
  */
-export const triggerWinConfetti = () => {
-  // Disabled
+export const triggerWinConfetti = (_winAmount?: number, _betAmount?: number) => {
+  // No-op
 };
 
 export const triggerBigWinConfetti = () => {
-  // Disabled
+  // No-op
 };
 
-export const triggerRecentGainConfetti = (_originX: number = 0.5, _originY: number = 0.5) => {
-  // Disabled
+export const triggerRecentGainConfetti = (_originX?: number, _originY?: number) => {
+  // No-op
 };
+
 
