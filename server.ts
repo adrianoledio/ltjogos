@@ -5,6 +5,7 @@ import path from "path";
 import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
 import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status.js";
 import { getValidSupabaseCredentials } from "./src/lib/supabase.js";
+import { RtpMonitor } from "./server/rtpMonitor.js";
 import {
   computeTattooSlotOutcome,
   computeYakuzaInkOutcome,
@@ -1074,6 +1075,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
+      // Start background RTP monitoring service
+      const rtpMonitor = new RtpMonitor(supabase);
+      rtpMonitor.startMonitoring(6); // Check every 6 hours
     });
   }
 
