@@ -5,6 +5,15 @@ import path from "path";
 import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
 import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status.js";
 import { getValidSupabaseCredentials } from "./src/lib/supabase.js";
+import {
+  computeTattooSlotOutcome,
+  computeYakuzaInkOutcome,
+  computeMysticInkOutcome,
+  computeCalaveraInkOutcome,
+  computeTattooCashOutcome,
+  computeRoulettaInkOutcome,
+  computeInkRevealOutcome,
+} from "./server/slotEngine.js";
 
 // Supabase Configuration
 const { url: validServerUrl, key: validServerKey } = getValidSupabaseCredentials();
@@ -378,6 +387,156 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       res.json({ success: true });
     } catch (error: any) {
       console.error("Internal error saving game:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  // Authoritative Backend Slot Spin & Probability Engine
+  app.post("/api/slots/spin", async (req, res) => {
+    try {
+      const {
+        userId,
+        gameId,
+        baseBet = 1,
+        activeBet = 1,
+        bet = 1,
+        betPerLine = 1,
+        totalBet = 1,
+        freeSpins = 0,
+        freeSpinsActive = false,
+        freeSpinsMultiplier = 1,
+        freeSpinMultiplier = 1,
+        doubleChance = false,
+        tigerActive = true,
+        dragonActive = true,
+        isWildTattoo = false,
+        isFeverActive = false,
+      } = req.body;
+
+      let targetPrize = 0;
+      let userRole = 'user';
+      let settingsData: any = null;
+      let userData: any = null;
+
+      try {
+        if (userId) {
+          const { data: u } = await supabase.from("users").select("*").eq("id", userId).single();
+          if (u) {
+            userData = u;
+            userRole = u.role || 'user';
+          }
+        }
+        const { data: s } = await supabase.from("settings").select("data").eq("id", "global").single();
+        if (s && s.data) {
+          settingsData = s.data;
+        }
+      } catch (e) {
+        console.warn("Supabase fetch error in /api/slots/spin:", e);
+      }
+
+      // Determine category for prize lookup
+      const prizeCategory = (gameId === 'rouletta-ink') ? 'roletas' : 'slots';
+
+      // Compute Target Prize according to game rules & limits
+      if (settingsData && settingsData.gamePrizes) {
+        const gamePrizeConfig =
+          settingsData.gamePrizes.find((p: any) => p.gameId === prizeCategory || p.gameId === 'slots') || settingsData.gamePrizes[0];
+        if (gamePrizeConfig && gamePrizeConfig.premios) {
+          const tiers = gamePrizeConfig.premios;
+          const adjustedTiers = tiers.map((t: any, idx: number) => {
+            if (userRole === 'partner' && idx >= tiers.length - 2) {
+              return { ...t, peso: t.peso * 4 };
+            }
+            return t;
+          });
+          const totalWeight = adjustedTiers.reduce((acc: number, t: any) => acc + (t.peso || 0), 0);
+          let rand = Math.random() * totalWeight;
+          let selectedTier = adjustedTiers[0];
+          for (const tier of adjustedTiers) {
+            if (rand < tier.peso) {
+              selectedTier = tier;
+              break;
+            }
+            rand -= tier.peso;
+          }
+
+          let pAmount =
+            Math.floor(Math.random() * (selectedTier.premioMax - selectedTier.premioMin + 1)) +
+            selectedTier.premioMin;
+          pAmount = Math.min(pAmount, 1000);
+
+          if (userData) {
+            const userLimit = Math.min(
+              userRole === 'partner'
+                ? (settingsData.limiteUsuarioDiario || 100) * 5
+                : settingsData.limiteUsuarioDiario || 100,
+              1000
+            );
+            const userRemaining = userLimit - (userData.dailyPrizeTotal || 0);
+            if (pAmount > userRemaining) pAmount = Math.max(0, userRemaining);
+          }
+
+          const platformRemaining =
+            (settingsData.limitePlataformaDiario || 500) - (settingsData.platformDailyPrizeTotal || 0);
+          if (pAmount > platformRemaining) pAmount = Math.max(0, platformRemaining);
+
+          targetPrize = pAmount;
+        }
+      }
+
+      let result: any;
+      if (gameId === 'tattoo-slot') {
+        result = computeTattooSlotOutcome(
+          targetPrize,
+          baseBet,
+          freeSpinsActive,
+          freeSpinsMultiplier,
+          doubleChance
+        );
+      } else if (gameId === 'yakuza-ink') {
+        result = computeYakuzaInkOutcome(targetPrize, betPerLine, tigerActive, dragonActive);
+      } else if (gameId === 'mystic-ink' || gameId === 'wild-tattoo') {
+        result = computeMysticInkOutcome(
+          targetPrize,
+          bet || activeBet || baseBet,
+          freeSpins,
+          freeSpinMultiplier || freeSpinsMultiplier,
+          isWildTattoo || gameId === 'wild-tattoo'
+        );
+      } else if (gameId === 'calavera-ink') {
+        result = computeCalaveraInkOutcome(
+          targetPrize,
+          activeBet || baseBet || bet,
+          freeSpinsActive,
+          freeSpinsMultiplier
+        );
+      } else if (gameId === 'tattoo-cash') {
+        result = computeTattooCashOutcome(
+          targetPrize,
+          bet || baseBet || activeBet,
+          freeSpins
+        );
+      } else if (gameId === 'rouletta-ink') {
+        result = computeRoulettaInkOutcome(
+          targetPrize,
+          bet || 1,
+          isFeverActive
+        );
+      } else if (gameId === 'ink-reveal') {
+        result = computeInkRevealOutcome(
+          targetPrize,
+          bet || 1
+        );
+      } else {
+        return res.status(400).json({ error: "Invalid gameId" });
+      }
+
+      res.json({
+        success: true,
+        ...result,
+      });
+    } catch (error: any) {
+      console.error("Error in /api/slots/spin:", error);
       res.status(500).json({ error: error.message || "Internal server error" });
     }
   });

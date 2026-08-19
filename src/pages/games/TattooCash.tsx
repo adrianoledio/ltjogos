@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService } from '../../services/slotService';
 import { ArrowLeft, Info, Wallet, Coins, Zap, Minus, Plus, Play, RefreshCw, X } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
@@ -211,176 +212,92 @@ export function TattooCash() {
     if (isSpinning) return;
     if (freeSpins === 0 && (!user || user.balance < bet)) return;
 
+    // 0ms Instant visual and sound response
     setIsSpinning(true);
     setWinAmount(0);
     setWinningLine(false);
     setShowWinModal(false);
     setShowBigWin(false);
 
-    // Active spin flags to enable blur/motion
+    // Active spin flags to enable blur/motion instantly
     setSpinLeft(true);
     setSpinCenter(true);
     setSpinRight(true);
-
-    // Deduct balance
-    if (freeSpins === 0) {
-      await updateBalance(-bet, 'bet', 'tattoo-cash', { bet });
-    }
-
     playSfx('spin');
 
-    // Get target prize from Server PrizeService (comply with global platform control!)
-    let target = 0;
-    try {
-      if (user) {
-        const { amount } = await PrizeService.getTargetPrize(user.id, 'slots');
-        target = amount;
-      }
-    } catch (e) {
-      console.error("Error fetching target prize:", e);
+    // Deduct balance in background
+    const balancePromise = freeSpins === 0
+      ? updateBalance(-bet, 'bet', 'tattoo-cash', { bet })
+      : Promise.resolve();
+
+    // Start background outcome calculation immediately
+    const spinOutcomePromise = SlotService.requestSpin({
+      userId: user?.id,
+      gameId: 'tattoo-cash',
+      bet,
+      freeSpins,
+    });
+
+    const [outcome] = await Promise.all([spinOutcomePromise, balancePromise]);
+
+    const finalLeft = outcome.finalLeft;
+    const finalCenter = outcome.finalCenter;
+    const finalRight = outcome.finalRight;
+
+    if (finalCenter.type === 'free_spins') {
+      setFreeSpins(prev => prev + (finalCenter.value || 5));
     }
 
-    // Determine outcome based on target prize
-    let finalLeft: Banknote;
-    let finalCenter: Banknote;
-    let finalRight: Banknote;
-
-    const leftOpts = generateLeftNotes(bet);
-    const rightOpts = generateRightNotes(bet);
-
-    if (target > 0) {
-      // WINNING ROUND! Let's build a match based on the target value.
-      // E.g. Reel 2 has 'PAGUE COIN' and Reel 1 and Reel 3 add up to target.
-      // Or Reel 2 has 'FREE SPINS' and Reel 1/3 have multiplier.
-      const winChance = Math.random();
-
-      if (winChance < 0.25 && freeSpins === 0) {
-        // TRIGGER FREE SPINS!
-        finalCenter = CENTER_ACTIVATORS[1]; // 5 Free Spins activator
-        finalLeft = leftOpts[Math.floor(Math.random() * leftOpts.length)];
-        finalRight = rightOpts[Math.floor(Math.random() * rightOpts.length)];
-        // Award free spins
-        setTimeout(() => {
-          setFreeSpins(5);
-        }, 2000);
-      } else {
-        // CASH PAYOUT
-        finalCenter = CENTER_ACTIVATORS[0]; // Pague Activator coin
-        
-        // Let's divide target into left and right notes
-        // Find left note that matches or is closest
-        let closestLeft = leftOpts[0];
-        let closestRight = rightOpts[0];
-        let bestDiff = Math.abs((closestLeft.value + closestRight.value) * bet - target);
-
-        for (const l of leftOpts) {
-          for (const r of rightOpts) {
-            let combinedValue = 0;
-            if (r.type === 'multiplier') {
-              combinedValue = (l.value * r.value) * bet;
-            } else {
-              combinedValue = (l.value + r.value) * bet;
-            }
-            const diff = Math.abs(combinedValue - target);
-            if (diff < bestDiff) {
-              bestDiff = diff;
-              closestLeft = l;
-              closestRight = r;
-            }
-          }
-        }
-
-        finalLeft = closestLeft;
-        finalRight = closestRight;
-      }
-    } else {
-      // LOSING SPIN! Center reel is a blank
-      finalCenter = CENTER_ACTIVATORS[2 + Math.floor(Math.random() * 2)];
-      finalLeft = leftOpts[Math.floor(Math.random() * leftOpts.length)];
-      finalRight = rightOpts[Math.floor(Math.random() * rightOpts.length)];
-    }
-
-    // Reel spin timings
-    const duration = isTurbo ? 150 : 600;
+    const duration = isTurbo ? 40 : 100;
 
     // Reel Left stop
-    setTimeout(() => {
-      setReelLeft(prev => [getRandomNote('left', bet), finalLeft, getRandomNote('left', bet)]);
-      setSpinLeft(false);
-      playSfx('click');
-    }, duration);
+    await new Promise(r => setTimeout(r, duration));
+    setReelLeft(outcome.reelLeft || [getRandomNote('left', bet), finalLeft, getRandomNote('left', bet)]);
+    setSpinLeft(false);
+    playSfx('click');
 
     // Reel Center stop
-    setTimeout(() => {
-      setReelCenter(prev => [getRandomNote('center', bet), finalCenter, getRandomNote('center', bet)]);
-      setSpinCenter(false);
-      playSfx('click');
-    }, duration + 300);
+    await new Promise(r => setTimeout(r, duration));
+    setReelCenter(outcome.reelCenter || [getRandomNote('center', bet), finalCenter, getRandomNote('center', bet)]);
+    setSpinCenter(false);
+    playSfx('click');
 
     // Reel Right stop
-    setTimeout(() => {
-      setReelRight(prev => [getRandomNote('right', bet), finalRight, getRandomNote('right', bet)]);
-      setSpinRight(false);
-      playSfx('click');
+    await new Promise(r => setTimeout(r, duration));
+    setReelRight(outcome.reelRight || [getRandomNote('right', bet), finalRight, getRandomNote('right', bet)]);
+    setSpinRight(false);
+    playSfx('click');
 
-      // Finalize outcome and compute payouts!
-      setTimeout(async () => {
-        let currentWin = 0;
-        let isWin = false;
+    let currentWin = outcome.winAmount || 0;
+    let isWin = outcome.isWin || false;
 
-        if (finalCenter.type === 'activator') {
-          isWin = true;
-          if (finalRight.type === 'multiplier') {
-            currentWin = (finalLeft.value * finalRight.value) * bet;
-          } else {
-            currentWin = (finalLeft.value + finalRight.value) * bet;
-          }
-        } else if (finalCenter.type === 'free_spins') {
-          isWin = true;
-          // Free spins triggered!
-          playSfx('bonus_trigger' as any);
-        }
+    if (isWin && currentWin > 0) {
+      setWinAmount(currentWin);
+      setWinningLine(true);
 
-        if (currentWin > 0) {
-          // STRICT CAP BY TARGET
-          if (target > 0 && currentWin > target) {
-            currentWin = target;
-          }
+      if (currentWin >= bet * 20) {
+        setShowBigWin(true);
+        triggerBigWinConfetti();
+      } else {
+        setShowWinModal(true);
+        triggerWinConfetti(currentWin, bet);
+      }
 
-          setWinningLine(true);
-          setWinAmount(currentWin);
-          
-          if (freeSpins > 0) {
-            setTotalFreeSpinWin(prev => prev + currentWin);
-          }
+      if (user) {
+        await updateBalance(currentWin, 'win', 'tattoo-cash', { finalLeft, finalCenter, finalRight });
+        await PrizeService.commitPrize(user.id, currentWin);
+      }
+      playSfx('win');
+      if (freeSpins > 0) {
+        setTotalFreeSpinWin(prev => prev + currentWin);
+      }
+    }
 
-          // Add transaction to DB and credit balance
-          if (user) {
-            await updateBalance(currentWin, 'win', 'tattoo-cash', { winAmount: currentWin });
-            await PrizeService.commitPrize(user.id, currentWin);
-          }
-          
-          playSfx('win');
+    if (freeSpins > 0) {
+      setFreeSpins(prev => Math.max(0, prev - 1));
+    }
 
-          // Win Celebration sizing
-          if (currentWin >= bet * 20) {
-            setShowBigWin(true);
-            triggerBigWinConfetti();
-          } else if (currentWin > bet) {
-            setShowWinModal(true);
-            triggerWinConfetti(currentWin, bet);
-          }
-        }
-
-        // Handle Free Spins decrement
-        if (freeSpins > 0) {
-          setFreeSpins(prev => prev - 1);
-        }
-
-        setIsSpinning(false);
-      }, 300);
-
-    }, duration + 600);
+    setIsSpinning(false);
   };
 
   // Automatically trigger spin in autoplay or free spins
@@ -497,7 +414,7 @@ export function TattooCash() {
               <div className="h-72 overflow-hidden relative bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
                 <motion.div 
                   animate={spinLeft ? { y: [-120, 120] } : { y: 0 }}
-                  transition={spinLeft ? { repeat: Infinity, duration: 0.15, ease: "linear" } : { type: "spring", stiffness: 100, damping: 15 }}
+                  transition={spinLeft ? { repeat: Infinity, duration: 0.06, ease: "linear" } : { type: "spring", stiffness: 500, damping: 26, mass: 0.45 }}
                   className="flex flex-col gap-3 items-center py-2"
                 >
                   {reelLeft.map((note, idx) => (
@@ -520,7 +437,7 @@ export function TattooCash() {
               <div className="h-72 overflow-hidden relative bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
                 <motion.div 
                   animate={spinCenter ? { y: [120, -120] } : { y: 0 }}
-                  transition={spinCenter ? { repeat: Infinity, duration: 0.15, ease: "linear" } : { type: "spring", stiffness: 100, damping: 15 }}
+                  transition={spinCenter ? { repeat: Infinity, duration: 0.06, ease: "linear" } : { type: "spring", stiffness: 500, damping: 26, mass: 0.45 }}
                   className="flex flex-col gap-3 items-center py-2"
                 >
                   {reelCenter.map((note, idx) => (
@@ -545,7 +462,7 @@ export function TattooCash() {
               <div className="h-72 overflow-hidden relative bg-black/40 rounded-xl border border-white/5 flex flex-col items-center justify-center">
                 <motion.div 
                   animate={spinRight ? { y: [-120, 120] } : { y: 0 }}
-                  transition={spinRight ? { repeat: Infinity, duration: 0.15, ease: "linear" } : { type: "spring", stiffness: 100, damping: 15 }}
+                  transition={spinRight ? { repeat: Infinity, duration: 0.06, ease: "linear" } : { type: "spring", stiffness: 500, damping: 26, mass: 0.45 }}
                   className="flex flex-col gap-3 items-center py-2"
                 >
                   {reelRight.map((note, idx) => (

@@ -5,10 +5,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService } from '../../services/slotService';
 import { ArrowLeft, Info, Wallet, Coins, Zap, Minus, Plus, Play, RefreshCw } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
 import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
+import { CachedImage } from '../../components/common/CachedImage';
+import { preloadAssets } from '../../lib/assetCache';
 
 const SYMBOLS_WEIGHTS = {
   '9': 25,
@@ -262,7 +265,7 @@ const renderSymbol = (symbol: string, isWinning: boolean = false, isWildTattoo: 
         )}
         {isLetter ? (
           <div className="relative flex items-center justify-center w-full h-full">
-             <img src={SYMBOL_ASSETS[symbol]} alt={symbol} className="absolute inset-0 w-full h-full opacity-20 blur-sm" />
+             <CachedImage src={SYMBOL_ASSETS[symbol]} alt={symbol} className="absolute inset-0 w-full h-full opacity-20 blur-sm" />
              <span className={`text-3xl sm:text-5xl font-black font-display tracking-tighter drop-shadow-lg ${
                symbol === 'A' ? 'text-red-500' :
                symbol === 'K' ? 'text-orange-500' :
@@ -274,7 +277,7 @@ const renderSymbol = (symbol: string, isWinning: boolean = false, isWildTattoo: 
              </span>
           </div>
         ) : (
-          <img 
+          <CachedImage 
             src={SYMBOL_ASSETS[symbol]} 
             alt={symbol} 
             className={imgClass}
@@ -344,7 +347,7 @@ const ReelColumn = ({
         <motion.div 
           className="flex flex-col gap-[1px] absolute top-0 left-0 w-full"
           animate={{ y: ["-66.6%", "0%"] }}
-          transition={{ repeat: Infinity, duration: isTurbo ? 0.08 : 0.15, ease: "linear" }}
+          transition={{ repeat: Infinity, duration: isTurbo ? 0.05 : 0.08, ease: "linear" }}
         >
           {[...spinSymbols, ...spinSymbols, ...spinSymbols].map((sym, i) => {
             return (
@@ -359,9 +362,9 @@ const ReelColumn = ({
       ) : (
         <motion.div 
           className="flex flex-col gap-[1px] absolute top-0 left-0 w-full h-full"
-          initial={{ y: "-20%" }}
+          initial={{ y: isTurbo ? "-3%" : "-8%" }}
           animate={{ y: "0%" }}
-          transition={{ type: "spring", stiffness: 300, damping: 20, mass: 0.8 }}
+          transition={{ type: "spring", stiffness: 520, damping: 28, mass: 0.45 }}
         >
           {symbols.map((sym, rIndex) => {
             const isWinning = winningPositions.some(p => p.r === rIndex && p.c === colIndex);
@@ -535,6 +538,8 @@ export function MysticInk() {
           playGameMusic(config.bgMusic);
         }
       }
+      // Preload symbol images into persistent cache
+      preloadAssets(Object.values(SYMBOL_ASSETS), 'image').catch(() => {});
     };
     fetchConfig();
     
@@ -611,6 +616,7 @@ export function MysticInk() {
     if (isSpinning) return;
     if (freeSpins === 0 && (!user || user.balance < bet)) return;
 
+    // 0ms Instant visual & audio response
     setIsSpinning(true);
     setWinAmount(0);
     setShowWinModal(false);
@@ -620,201 +626,105 @@ export function MysticInk() {
     setWinningPositions([]);
     setWinningMults([]);
     setIsShaking(false);
-    
-    if (freeSpins === 0) {
-      await updateBalance(-bet, 'bet', isWildTattoo ? 'wild-tattoo' : 'mystic-ink', { bet });
-    }
-    
     playSfx('spin');
+    
+    // Background balance debit
+    const balancePromise = freeSpins === 0
+      ? updateBalance(-bet, 'bet', isWildTattoo ? 'wild-tattoo' : 'mystic-ink', { bet })
+      : Promise.resolve();
 
-    let currentTarget = 0;
-    try {
-      if (user) {
-        const { amount } = await PrizeService.getTargetPrize(user.id, 'slots');
-        currentTarget = amount;
-        setTargetPrize(amount);
-      }
-    } catch (error) {
-      console.error("Error generating prize:", error);
-    }
+    // Start background outcome calculation immediately
+    const spinOutcomePromise = SlotService.requestSpin({
+      userId: user?.id,
+      gameId: isWildTattoo ? 'wild-tattoo' : 'mystic-ink',
+      bet,
+      freeSpins,
+      freeSpinMultiplier,
+      isWildTattoo,
+    });
 
-    const finalGrid = generateGrid(currentTarget);
-    setGrid(finalGrid);
-
-    const spinDuration = isTurbo ? 400 : 1200;
-
-    let currentLockedCols = [false, false, false, false, false];
-    let currentLockedMults = [false, false, false, false, false];
     let currentMultipliers = [...topMultipliers];
-
     const multInterval = setInterval(() => {
       const next = [...currentMultipliers];
       for (let i = 0; i < 5; i++) {
-        if (!currentLockedMults[i]) {
-          if (i < 4 && !currentLockedMults[i+1]) {
-            next[i] = currentMultipliers[i+1];
-          } else {
-            next[i] = getRandomMultiplier();
-          }
-        }
+        next[i] = getRandomMultiplier();
       }
       currentMultipliers = next;
       setTopMultipliers(next);
-    }, 100);
+    }, 50);
 
-    setTimeout(() => {
-      let colIndex = 0;
-      const colInterval = setInterval(() => {
-        if (colIndex < 5) {
-          currentLockedCols[colIndex] = true;
-          setLockedCols([...currentLockedCols]);
-          playSfx('click');
-          colIndex++;
-        } else {
-          clearInterval(colInterval);
-          
-          let multIndex = 0;
-          const multLockInterval = setInterval(async () => {
-            if (multIndex < 5) {
-              currentLockedMults[multIndex] = true;
-              setLockedMults([...currentLockedMults]);
-              playSfx('click');
-              multIndex++;
-            } else {
-              clearInterval(multLockInterval);
-              clearInterval(multInterval);
-              
-              let currentMultiplier = freeSpins > 0 ? freeSpinMultiplier : 1;
-              let scatterCount = 0;
-              finalGrid.forEach(row => {
-                row.forEach(symbol => {
-                  if (symbol === 'SCATTER') scatterCount++;
-                });
-              });
+    const [outcome] = await Promise.all([spinOutcomePromise, balancePromise]);
+    clearInterval(multInterval);
 
-              let wonFreeSpins = false;
-              if (scatterCount >= 3) {
-                wonFreeSpins = true;
-                playSfx('win');
-              }
+    const finalGrid = outcome.finalGrid;
+    const finalTopMults = outcome.topMultipliers || currentMultipliers;
+    setGrid(finalGrid);
+    setTopMultipliers(finalTopMults);
 
-              const PAYTABLE: Record<string, number[]> = {
-                'POTION': [0, 0, 0, 1.0, 2.5, 5.0],
-                'SCALES': [0, 0, 0, 0.8, 2.0, 4.0],
-                'A': [0, 0, 0, 0.5, 1.5, 3.0],
-                'K': [0, 0, 0, 0.4, 1.2, 2.5],
-                'Q': [0, 0, 0, 0.3, 1.0, 2.0],
-                'J': [0, 0, 0, 0.2, 0.8, 1.5],
-                '10': [0, 0, 0, 0.1, 0.5, 1.0],
-                '9': [0, 0, 0, 0.1, 0.5, 1.0],
-              };
+    const stepDelay = isTurbo ? 25 : 45;
+    let currentLockedCols = [false, false, false, false, false];
+    let currentLockedMults = [false, false, false, false, false];
 
-              let totalWin = 0;
-              let newWinningPositions: {r: number, c: number}[] = [];
-              let newWinningMults: number[] = [];
-              const symbolsToCheck = Object.keys(PAYTABLE);
-              
-              symbolsToCheck.forEach(symbol => {
-                let ways = 1;
-                let matchCount = 0;
-                let symbolWinningPositions: {r: number, c: number}[] = [];
-                let colsCounts: number[] = [];
-                
-                for (let c = 0; c < COLS; c++) {
-                  let countInCol = 0;
-                  let colPositions: {r: number, c: number}[] = [];
-                  for (let r = 0; r < rowsCount; r++) {
-                    if (finalGrid[r][c] === symbol || finalGrid[r][c] === 'WILD') {
-                      countInCol++;
-                      colPositions.push({r, c});
-                    }
-                  }
-                  
-                  if (countInCol > 0) {
-                    colsCounts.push(countInCol);
-                    ways *= countInCol;
-                    matchCount++;
-                    symbolWinningPositions.push(...colPositions);
-                  } else {
-                    break;
-                  }
-                }
+    for (let c = 0; c < 5; c++) {
+      await new Promise(r => setTimeout(r, stepDelay));
+      currentLockedCols[c] = true;
+      setLockedCols([...currentLockedCols]);
+      playSfx('click');
+    }
 
-                if (matchCount >= 3) {
-                  const payoutMultiplier = PAYTABLE[symbol][matchCount];
-                  if (payoutMultiplier > 0) {
-                    let multSum = 0;
-                    for (let c = 0; c < matchCount; c++) {
-                      if (colsCounts[c] >= 3) {
-                        multSum += currentMultipliers[c];
-                        if (!newWinningMults.includes(c)) {
-                          newWinningMults.push(c);
-                        }
-                      }
-                    }
-                    
-                    const finalMult = multSum > 0 ? multSum : 1;
-                    let winAmount = bet * payoutMultiplier * ways * finalMult * currentMultiplier;
-                    
-                    // CAP BY TARGET
-                    if (currentTarget > 0) {
-                      const remainingCap = currentTarget - totalWin;
-                      if (winAmount > remainingCap) {
-                        winAmount = Math.max(0, remainingCap);
-                      }
-                    }
+    for (let m = 0; m < 5; m++) {
+      await new Promise(r => setTimeout(r, stepDelay));
+      currentLockedMults[m] = true;
+      setLockedMults([...currentLockedMults]);
+      playSfx('click');
+    }
 
-                    totalWin += winAmount;
-                    
-                    symbolWinningPositions.forEach(pos => {
-                      if (pos.c < matchCount && !newWinningPositions.some(p => p.r === pos.r && p.c === pos.c)) {
-                        newWinningPositions.push(pos);
-                      }
-                    });
-                  }
-                }
-              });
+    const totalWin = outcome.totalWin || 0;
+    const winningPositions = outcome.winningPositions || [];
+    const winningMults = outcome.winningMults || [];
+    const wonFreeSpins = outcome.wonFreeSpins || false;
 
-              if (totalWin > 0) {
-                setWinningPositions(newWinningPositions);
-                setWinningMults(newWinningMults);
-                setWinAmount(totalWin);
-                
-                if (totalWin >= bet * 20) {
-                  setShowBigWin(true);
-                  setIsShaking(true);
-                  triggerBigWinConfetti();
-                } else if (totalWin > bet) {
-                  setShowWinModal(true);
-                  triggerWinConfetti(totalWin, bet);
-                }
+    if (wonFreeSpins) {
+      playSfx('win');
+    }
 
-                if (user) {
-                  await updateBalance(totalWin, 'win', isWildTattoo ? 'wild-tattoo' : 'mystic-ink', { winningPositions: newWinningPositions, winningMults: newWinningMults });
-                  await PrizeService.commitPrize(user.id, totalWin);
-                }
-                playSfx('win');
-                if (freeSpins > 0) {
-                   setTotalFreeSpinWin(prev => prev + totalWin);
-                }
-              }
+    if (totalWin > 0) {
+      setWinningPositions(winningPositions);
+      setWinningMults(winningMults);
+      setWinAmount(totalWin);
 
-              if (freeSpins > 0) {
-                setFreeSpins(prev => prev - 1 + (wonFreeSpins ? 10 : 0));
-                setFreeSpinMultiplier(prev => prev + 1);
-              } else if (wonFreeSpins) {
-                setFreeSpins(10);
-                setFreeSpinMultiplier(1);
-                setTotalFreeSpinWin(0);
-              }
+      if (totalWin >= bet * 20) {
+        setShowBigWin(true);
+        setIsShaking(true);
+        triggerBigWinConfetti();
+      } else if (totalWin > bet) {
+        setShowWinModal(true);
+        triggerWinConfetti(totalWin, bet);
+      }
 
-              setIsSpinning(false);
-            }
-          }, isTurbo ? 80 : 200);
-        }
-      }, isTurbo ? 80 : 200);
+      if (user) {
+        await updateBalance(totalWin, 'win', isWildTattoo ? 'wild-tattoo' : 'mystic-ink', {
+          winningPositions,
+          winningMults,
+        });
+        await PrizeService.commitPrize(user.id, totalWin);
+      }
+      playSfx('win');
+      if (freeSpins > 0) {
+        setTotalFreeSpinWin(prev => prev + totalWin);
+      }
+    }
 
-    }, spinDuration);
+    if (freeSpins > 0) {
+      setFreeSpins(prev => prev - 1 + (wonFreeSpins ? 10 : 0));
+      setFreeSpinMultiplier(prev => prev + 1);
+    } else if (wonFreeSpins) {
+      setFreeSpins(10);
+      setFreeSpinMultiplier(1);
+      setTotalFreeSpinWin(0);
+    }
+
+    setIsSpinning(false);
   };
 
   const buyFreeSpins = async () => {

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { db, GameConfig } from '../../data/db';
+import { CachedImage } from '../common/CachedImage';
+import { preloadAssets } from '../../lib/assetCache';
 
 const FALLBACK_SLIDES = [
   {
@@ -36,6 +38,9 @@ export function HeroCarousel() {
         const allGames = await db.getGames();
         const active = allGames.filter(g => g.active);
         setActiveGames(active);
+        // Preload banner images into persistent cache
+        const bannerUrls = active.map(g => g.bgPage || g.thumbnail).filter(Boolean);
+        preloadAssets(bannerUrls, 'image').catch(() => {});
       } catch (error) {
         console.error('Error loading active games for carousel:', error);
       }
@@ -115,7 +120,7 @@ export function HeroCarousel() {
         >
           <Link to={currentSlide.link} className="absolute inset-0 block cursor-pointer">
             {!imgErrors[currentSlide.id] && currentSlide.image ? (
-              <img
+              <CachedImage
                 src={currentSlide.image}
                 alt={currentSlide.title}
                 className="w-full h-full object-cover"

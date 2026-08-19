@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService } from '../../services/slotService';
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star, ThumbsUp } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
@@ -697,6 +698,7 @@ export function CalaveraInk() {
       setFreeSpins(prev => Math.max(0, prev - 1));
     }
 
+    // 0ms Instant response
     setIsSpinning(true);
     setWinAmount(0);
     setShowWinCelebration(false);
@@ -704,57 +706,43 @@ export function CalaveraInk() {
     setWinningPositions([]);
     setIsShaking(false);
     setMultiplier(1); // Reset multiplier to 1 for new spin
-
-    // Deduct Balance
-    if (!freeSpinsActive) {
-      await updateBalance(-cost, 'bet', 'calavera-ink', { bet: cost });
-    }
-
     playSfx('spin');
-
-    // Retrieve target payout
-    let currentTarget = 0;
-    try {
-      if (user) {
-        const { amount } = await PrizeService.getTargetPrize(user.id, 'slots');
-        currentTarget = amount;
-      }
-    } catch (err) {
-      console.error("Error retrieving target prize:", err);
-    }
-
-    const finalGrid = generateGrid(currentTarget);
-
-    // Randomize initial Golden Frames on reels 2,3,4 (cols 1,2,3)
-    const newGoldenFrames: string[] = [];
-    for (let c = 1; c <= 3; c++) {
-      if (Math.random() < 0.5) {
-        const r = Math.floor(Math.random() * ROWS);
-        newGoldenFrames.push(`${r}_${c}`);
-      }
-    }
-    setGoldenFrames(newGoldenFrames);
-
-    // Columns spinning simulation
     setSpinningCols([true, true, true, true, true]);
+
+    // Deduct Balance in background
+    const balancePromise = !freeSpinsActive
+      ? updateBalance(-cost, 'bet', 'calavera-ink', { bet: cost })
+      : Promise.resolve();
+
+    // Start background outcome calculation immediately
+    const spinOutcomePromise = SlotService.requestSpin({
+      userId: user?.id,
+      gameId: 'calavera-ink',
+      activeBet,
+      freeSpinsActive,
+      freeSpinsMultiplier,
+    });
+
+    const [outcome] = await Promise.all([spinOutcomePromise, balancePromise]);
+
+    const finalGrid = outcome.finalGrid;
+    const newGoldenFrames = outcome.goldenFrames || [];
+    setGoldenFrames(newGoldenFrames);
     setGrid(finalGrid);
 
-    const stagger = isTurbo === 'turbo' ? [150, 200, 250, 300, 350] : [400, 600, 800, 1000, 1200];
+    const stagger = isTurbo === 'turbo' ? [40, 70, 100, 130, 160] : [70, 120, 170, 220, 270];
     
-    stagger.forEach((delay, idx) => {
-      setTimeout(() => {
-        setSpinningCols(prev => {
-          const next = [...prev];
-          next[idx] = false;
-          return next;
-        });
-        playSfx('click');
+    for (let idx = 0; idx < COLS; idx++) {
+      await new Promise(r => setTimeout(r, stagger[idx] - (idx > 0 ? stagger[idx - 1] : 0)));
+      setSpinningCols(prev => {
+        const next = [...prev];
+        next[idx] = false;
+        return next;
+      });
+      playSfx('click');
+    }
 
-        if (idx === COLS - 1) {
-          evaluateCascadeWins(finalGrid, 0, currentTarget);
-        }
-      }, delay);
-    });
+    evaluateCascadeWins(finalGrid, 0, outcome.targetPrize || 999999);
   };
 
   // Evaluate wins inside cascade
@@ -861,7 +849,7 @@ export function CalaveraInk() {
         });
         
         processCascade(currentGrid, newWinningPositions, newAccumulated);
-      }, 1000);
+      }, 450);
 
     } else {
       // Cascade ended, no more wins
@@ -983,7 +971,7 @@ export function CalaveraInk() {
                       {spinningCols[cIndex] ? (
                         <motion.div
                           animate={{ y: [-100, 100] }}
-                          transition={{ repeat: Infinity, duration: 0.15, ease: "linear" }}
+                          transition={{ repeat: Infinity, duration: 0.07, ease: "linear" }}
                           className="text-white/10 text-2xl font-black italic select-none"
                         >
                           ☠

@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService, YakuzaInkSpinResponse } from '../../services/slotService';
 import { ArrowLeft, Info, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Flame } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
@@ -285,6 +286,7 @@ export function YakuzaInk() {
   // Highlighting winning lines
   const [winningTigerPositions, setWinningTigerPositions] = useState<number[]>([]);
   const [winningDragonPositions, setWinningDragonPositions] = useState<number[]>([]);
+  const [pendingYakuzaOutcome, setPendingYakuzaOutcome] = useState<YakuzaInkSpinResponse | null>(null);
 
   // Sound, info & auto intervals
   const [soundMuted, setSoundMuted] = useState(false);
@@ -343,230 +345,15 @@ export function YakuzaInk() {
     setDragonActive(!dragonActive);
   };
 
-  // Main Spinning function
-  const spin = async () => {
-    if (isSpinning) return;
-    
-    if (!user || user.balance < totalBet) {
-      setAutoPlay(false);
-      alert('Saldo insuficiente para realizar a aposta.');
-      return;
-    }
+  // Refactored useEffect for Backend Probability-driven Reel Landing
+  useEffect(() => {
+    if (!pendingYakuzaOutcome) return;
 
-    // Start Spin Routine
-    setIsSpinning(true);
-    setTigerWinAmount(0);
-    setDragonWinAmount(0);
-    setTotalWin(0);
-    setIsDoubleWin(false);
-    setWinningTigerPositions([]);
-    setWinningDragonPositions([]);
-
-    // Deduct Balance
-    await updateBalance(-totalBet, 'bet', 'yakuza-ink', { bet: totalBet });
-    playSfx('spin');
-
-    // Retrieve Target Prize
-    let currentTarget = 0;
-    try {
-      if (user) {
-        const { amount } = await PrizeService.getTargetPrize(user.id, 'slots');
-        currentTarget = amount;
-      }
-    } catch (err) {
-      console.error("Error retrieving target prize:", err);
-    }
-
-    // Determine outcomes for Tiger and Dragon
-    let tigerResult: string[] = [];
-    let dragonResult: string[] = [];
-
-    let calculatedTigerWin = 0;
-    let calculatedDragonWin = 0;
-    let winningTigerPos: number[] = [];
-    let winningDragonPos: number[] = [];
-
-    // Helper to generate a losing layout
-    const makeLoseTiger = () => {
-      const syms = [...TIGER_SYMBOLS];
-      // Shuffle and pick 3 different ones to ensure no 3-of-a-kind, and no mixed heads/paws if possible
-      const list = [
-        syms[Math.floor(Math.random() * syms.length)].id,
-        syms[Math.floor(Math.random() * syms.length)].id,
-        syms[Math.floor(Math.random() * syms.length)].id,
-      ];
-      // Ensure no 3 matching
-      if (list[0] === list[1] && list[1] === list[2]) {
-        list[0] = list[0] === 'KATANA' ? 'TIGER_PAW' : 'KATANA';
-      }
-      return list;
-    };
-
-    const makeLoseDragon = () => {
-      const syms = [...DRAGON_SYMBOLS];
-      const list = [
-        syms[Math.floor(Math.random() * syms.length)].id,
-        syms[Math.floor(Math.random() * syms.length)].id,
-        syms[Math.floor(Math.random() * syms.length)].id,
-      ];
-      if (list[0] === list[1] && list[1] === list[2]) {
-        list[0] = list[0] === 'KATANA' ? 'DRAGON_PAW' : 'KATANA';
-      }
-      return list;
-    };
-
-    // If there is a target prize to distribute
-    if (currentTarget > 0) {
-      // Check which reels are active
-      if (tigerActive && dragonActive) {
-        // Double wins active! If target prize >= 10x single bet, we can make BOTH reels win (with x2 multiplier)
-        // Since both win gets x2, pre-multiplier total must equal currentTarget / 2
-        const halfTarget = currentTarget / 2;
-        
-        // Find if we can perfectly fit payouts
-        // Standard single payout options (from paytable relative to betPerLine):
-        // 100x, 50x, 25x, 10x, 5x
-        // Let's divide halfTarget into two parts
-        let TigerPayout = 0;
-        let DragonPayout = 0;
-
-        // Try to distribute
-        const options = [100, 50, 25, 10, 5];
-        const matchTig = options.find(o => Math.abs((o * betPerLine) - halfTarget / 2) < 0.1);
-        const matchDrag = options.find(o => Math.abs((o * betPerLine) - halfTarget / 2) < 0.1);
-
-        if (matchTig && matchDrag) {
-          TigerPayout = matchTig * betPerLine;
-          DragonPayout = matchDrag * betPerLine;
-        } else {
-          // Fallback: one wins, one loses (multiplier doesn't apply, so one wins exact target prize)
-          if (Math.random() > 0.5) {
-            TigerPayout = currentTarget;
-            DragonPayout = 0;
-          } else {
-            TigerPayout = 0;
-            DragonPayout = currentTarget;
-          }
-        }
-
-        // Generate Tiger Layout
-        if (TigerPayout > 0) {
-          const mult = TigerPayout / betPerLine;
-          const config = TIGER_SYMBOLS.find(s => s.payout === mult);
-          if (config) {
-            tigerResult = [config.id, config.id, config.id];
-            calculatedTigerWin = TigerPayout;
-            winningTigerPos = [0, 1, 2];
-          } else if (mult === 5) {
-            // Mixed Win
-            tigerResult = ['GOLD_TIGER', 'SILVER_TIGER', 'TIGER_PAW'];
-            calculatedTigerWin = TigerPayout;
-            winningTigerPos = [0, 1, 2];
-          } else {
-            tigerResult = makeLoseTiger();
-          }
-        } else {
-          tigerResult = makeLoseTiger();
-        }
-
-        // Generate Dragon Layout
-        if (DragonPayout > 0) {
-          const mult = DragonPayout / betPerLine;
-          const config = DRAGON_SYMBOLS.find(s => s.payout === mult);
-          if (config) {
-            dragonResult = [config.id, config.id, config.id];
-            calculatedDragonWin = DragonPayout;
-            winningDragonPos = [0, 1, 2];
-          } else if (mult === 5) {
-            dragonResult = ['GOLD_DRAGON', 'SILVER_DRAGON', 'DRAGON_PAW'];
-            calculatedDragonWin = DragonPayout;
-            winningDragonPos = [0, 1, 2];
-          } else {
-            dragonResult = makeLoseDragon();
-          }
-        } else {
-          dragonResult = makeLoseDragon();
-        }
-
-      } else if (tigerActive) {
-        // Only Tiger wins
-        const mult = currentTarget / betPerLine;
-        const config = TIGER_SYMBOLS.find(s => s.payout === mult);
-        if (config) {
-          tigerResult = [config.id, config.id, config.id];
-          calculatedTigerWin = currentTarget;
-          winningTigerPos = [0, 1, 2];
-        } else if (mult === 5) {
-          tigerResult = ['GOLD_TIGER', 'SILVER_TIGER', 'TIGER_PAW'];
-          calculatedTigerWin = currentTarget;
-          winningTigerPos = [0, 1, 2];
-        } else {
-          tigerResult = makeLoseTiger();
-        }
-        dragonResult = makeLoseDragon();
-      } else if (dragonActive) {
-        // Only Dragon wins
-        const mult = currentTarget / betPerLine;
-        const config = DRAGON_SYMBOLS.find(s => s.payout === mult);
-        if (config) {
-          dragonResult = [config.id, config.id, config.id];
-          calculatedDragonWin = currentTarget;
-          winningDragonPos = [0, 1, 2];
-        } else if (mult === 5) {
-          dragonResult = ['GOLD_DRAGON', 'SILVER_DRAGON', 'DRAGON_PAW'];
-          calculatedDragonWin = currentTarget;
-          winningDragonPos = [0, 1, 2];
-        } else {
-          dragonResult = makeLoseDragon();
-        }
-        tigerResult = makeLoseTiger();
-      }
-    } else {
-      // Natural / random spins (losing or tiny chance of winning)
-      // High-quality RTP balanced random simulation
-      if (tigerActive) {
-        if (Math.random() < 0.12) { // 12% hit rate
-          const possible = [...TIGER_SYMBOLS];
-          const choice = possible[Math.floor(Math.random() * possible.length)];
-          tigerResult = [choice.id, choice.id, choice.id];
-          calculatedTigerWin = choice.payout * betPerLine;
-          winningTigerPos = [0, 1, 2];
-        } else if (Math.random() < 0.25) { // mixed win
-          tigerResult = ['GOLD_TIGER', 'SILVER_TIGER', 'TIGER_PAW'];
-          calculatedTigerWin = 5 * betPerLine;
-          winningTigerPos = [0, 1, 2];
-        } else {
-          tigerResult = makeLoseTiger();
-        }
-      } else {
-        tigerResult = makeLoseTiger();
-      }
-
-      if (dragonActive) {
-        if (Math.random() < 0.12) {
-          const possible = [...DRAGON_SYMBOLS];
-          const choice = possible[Math.floor(Math.random() * possible.length)];
-          dragonResult = [choice.id, choice.id, choice.id];
-          calculatedDragonWin = choice.payout * betPerLine;
-          winningDragonPos = [0, 1, 2];
-        } else if (Math.random() < 0.25) {
-          dragonResult = ['GOLD_DRAGON', 'SILVER_DRAGON', 'DRAGON_PAW'];
-          calculatedDragonWin = 5 * betPerLine;
-          winningDragonPos = [0, 1, 2];
-        } else {
-          dragonResult = makeLoseDragon();
-        }
-      } else {
-        dragonResult = makeLoseDragon();
-      }
-    }
-
-    // Set Spinning Columns
-    if (tigerActive) setSpinningTiger([true, true, true]);
-    if (dragonActive) setSpinningDragon([true, true, true]);
+    const outcome = pendingYakuzaOutcome;
+    setPendingYakuzaOutcome(null);
 
     // Timings
-    const delayStep = isTurbo ? 100 : 350;
+    const delayStep = isTurbo ? 50 : 120;
 
     // Sequential stop for Tiger Columns
     if (tigerActive) {
@@ -574,7 +361,7 @@ export function YakuzaInk() {
         setTimeout(() => {
           setTigerReels(prev => {
             const next = [...prev];
-            next[i] = tigerResult[i];
+            next[i] = outcome.tigerResult[i];
             return next;
           });
           setSpinningTiger(prev => {
@@ -593,7 +380,7 @@ export function YakuzaInk() {
         setTimeout(() => {
           setDragonReels(prev => {
             const next = [...prev];
-            next[i] = dragonResult[i];
+            next[i] = outcome.dragonResult[i];
             return next;
           });
           setSpinningDragon(prev => {
@@ -609,59 +396,93 @@ export function YakuzaInk() {
     // All columns completed
     const totalDuration = ((tigerActive ? 3 : 0) + (dragonActive ? 3 : 0) + 1.5) * delayStep;
     
-    setTimeout(async () => {
-      // Determine final multiplier double win
-      const bothActive = tigerActive && dragonActive;
-      const bothWon = calculatedTigerWin > 0 && calculatedDragonWin > 0;
-      
-      let finalWinSum = calculatedTigerWin + calculatedDragonWin;
-      let dblWin = false;
+    setTimeout(() => {
+      finalizeYakuzaSpin(outcome);
+    }, totalDuration);
+  }, [pendingYakuzaOutcome]);
 
-      if (bothActive && bothWon) {
-        finalWinSum = finalWinSum * 2;
-        dblWin = true;
+  // Main Spinning function (Backend Probability First)
+  const spin = async () => {
+    if (isSpinning) return;
+    
+    if (!user || user.balance < totalBet) {
+      setAutoPlay(false);
+      alert('Saldo insuficiente para realizar a aposta.');
+      return;
+    }
+
+    // Start Spin Routine (0ms instant response)
+    setIsSpinning(true);
+    setTigerWinAmount(0);
+    setDragonWinAmount(0);
+    setTotalWin(0);
+    setIsDoubleWin(false);
+    setWinningTigerPositions([]);
+    setWinningDragonPositions([]);
+    playSfx('spin');
+
+    // Instantly start spinning reels
+    if (tigerActive) setSpinningTiger([true, true, true]);
+    if (dragonActive) setSpinningDragon([true, true, true]);
+
+    // Deduct Balance in background
+    const balancePromise = updateBalance(-totalBet, 'bet', 'yakuza-ink', { bet: totalBet });
+
+    // Request authoritative backend probability and outcomes
+    const backendResult = await SlotService.requestSpin({
+      userId: user?.id,
+      gameId: 'yakuza-ink',
+      betPerLine,
+      totalBet,
+      tigerActive,
+      dragonActive,
+    });
+
+    await balancePromise;
+
+    // Trigger state machine for animated reel landing
+    setPendingYakuzaOutcome(backendResult);
+  };
+
+  // Finalize Yakuza spin results, settle wins and manage autoplay
+  const finalizeYakuzaSpin = async (outcome: YakuzaInkSpinResponse) => {
+    const finalWinSum = outcome.totalWin;
+
+    setTigerWinAmount(outcome.calculatedTigerWin);
+    setDragonWinAmount(outcome.calculatedDragonWin);
+    setWinningTigerPositions(outcome.winningTigerPos);
+    setWinningDragonPositions(outcome.winningDragonPos);
+    setIsDoubleWin(outcome.isDoubleWin);
+    setTotalWin(finalWinSum);
+
+    // Save win to server
+    if (finalWinSum > 0) {
+      playSfx('win');
+      if (finalWinSum >= totalBet * 15) {
+        triggerBigWinConfetti();
+      } else if (finalWinSum > totalBet) {
+        triggerWinConfetti(finalWinSum, totalBet);
       }
-
-      // STRICT CAP BY TARGET (only when target active > 0)
-      if (currentTarget > 0 && finalWinSum > currentTarget) {
-        finalWinSum = currentTarget;
-      }
-
-      setTigerWinAmount(calculatedTigerWin);
-      setDragonWinAmount(calculatedDragonWin);
-      setWinningTigerPositions(winningTigerPos);
-      setWinningDragonPositions(winningDragonPos);
-      setIsDoubleWin(dblWin);
-      setTotalWin(finalWinSum);
-
-      // Save win to server
-      if (finalWinSum > 0) {
-        playSfx('win');
-        if (finalWinSum >= totalBet * 15) {
-          triggerBigWinConfetti();
-        } else if (finalWinSum > totalBet) {
-          triggerWinConfetti(finalWinSum, totalBet);
-        }
+      if (user) {
         await updateBalance(finalWinSum, 'win', 'yakuza-ink', {
-          tigerWin: calculatedTigerWin,
-          dragonWin: calculatedDragonWin,
-          doubleMultiplierApplied: dblWin,
+          tigerWin: outcome.calculatedTigerWin,
+          dragonWin: outcome.calculatedDragonWin,
+          doubleMultiplierApplied: outcome.isDoubleWin,
         });
         await PrizeService.commitPrize(user.id, finalWinSum);
       }
+    }
 
-      setIsSpinning(false);
+    setIsSpinning(false);
 
-      // Handle Auto Play
-      if (autoPlayRef.current) {
-        setTimeout(() => {
-          if (autoPlayRef.current) {
-            spin();
-          }
-        }, isTurbo ? 350 : 800);
-      }
-
-    }, totalDuration);
+    // Handle Auto Play
+    if (autoPlayRef.current) {
+      setTimeout(() => {
+        if (autoPlayRef.current) {
+          spin();
+        }
+      }, isTurbo ? 350 : 800);
+    }
   };
 
   // Turn off auto-play on manual toggle
@@ -803,8 +624,8 @@ export function YakuzaInk() {
                   <div className="absolute inset-0 flex flex-col items-center justify-start overflow-hidden">
                     <motion.div
                       animate={{ y: [0, -320] }}
-                      transition={{ repeat: Infinity, duration: 0.12, ease: 'linear' }}
-                      className="flex flex-col gap-4 items-center justify-start filter blur-[3px]"
+                      transition={{ repeat: Infinity, duration: isTurbo ? 0.04 : 0.065, ease: 'linear' }}
+                      className="flex flex-col gap-4 items-center justify-start filter blur-[2px] opacity-75"
                     >
                       <div className="w-12 h-12 shrink-0 flex items-center justify-center">{renderYakuzaSymbol('GOLD_TIGER')}</div>
                       <div className="w-12 h-12 shrink-0 flex items-center justify-center">{renderYakuzaSymbol('SILVER_TIGER')}</div>
@@ -815,9 +636,9 @@ export function YakuzaInk() {
                   </div>
                 ) : (
                   <motion.div
-                    initial={{ y: -120, scaleY: 1.3, filter: 'blur(6px)', opacity: 0.3 }}
+                    initial={{ y: isTurbo ? -15 : -30, scaleY: 1.08, filter: 'blur(2px)', opacity: 0.8 }}
                     animate={{ y: 0, scaleY: 1, filter: 'blur(0px)', opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 360, damping: 13 }}
+                    transition={{ type: 'spring', stiffness: 550, damping: 28, mass: 0.45 }}
                     className="w-full h-full"
                   >
                     {renderYakuzaSymbol(symbol, winningTigerPositions.includes(idx))}
@@ -894,8 +715,8 @@ export function YakuzaInk() {
                   <div className="absolute inset-0 flex flex-col items-center justify-start overflow-hidden">
                     <motion.div
                       animate={{ y: [0, -320] }}
-                      transition={{ repeat: Infinity, duration: 0.12, ease: 'linear' }}
-                      className="flex flex-col gap-4 items-center justify-start filter blur-[3px]"
+                      transition={{ repeat: Infinity, duration: isTurbo ? 0.04 : 0.065, ease: 'linear' }}
+                      className="flex flex-col gap-4 items-center justify-start filter blur-[2px] opacity-75"
                     >
                       <div className="w-12 h-12 shrink-0 flex items-center justify-center">{renderYakuzaSymbol('GOLD_DRAGON')}</div>
                       <div className="w-12 h-12 shrink-0 flex items-center justify-center">{renderYakuzaSymbol('SILVER_DRAGON')}</div>
@@ -906,9 +727,9 @@ export function YakuzaInk() {
                   </div>
                 ) : (
                   <motion.div
-                    initial={{ y: -120, scaleY: 1.3, filter: 'blur(6px)', opacity: 0.3 }}
+                    initial={{ y: isTurbo ? -15 : -30, scaleY: 1.08, filter: 'blur(2px)', opacity: 0.8 }}
                     animate={{ y: 0, scaleY: 1, filter: 'blur(0px)', opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 360, damping: 13 }}
+                    transition={{ type: 'spring', stiffness: 550, damping: 28, mass: 0.45 }}
                     className="w-full h-full"
                   >
                     {renderYakuzaSymbol(symbol, winningDragonPositions.includes(idx))}

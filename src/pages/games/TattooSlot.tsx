@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService, TattooSlotSpinResponse } from '../../services/slotService';
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
@@ -370,14 +371,14 @@ const ReelColumnComponent: React.FC<{
           animate={{ y: ["-75%", "0%"] }}
           transition={{ 
             repeat: Infinity, 
-            duration: isTurbo === 'super' ? 0.05 : isTurbo === 'turbo' ? 0.1 : 0.2, 
+            duration: isTurbo === 'super' ? 0.035 : isTurbo === 'turbo' ? 0.06 : 0.08, 
             ease: "linear" 
           }}
         >
           {[...spinSymbols, ...spinSymbols, ...spinSymbols, ...spinSymbols].map((sym, i) => {
             return (
               <div key={i} className="aspect-square flex items-center justify-center">
-                <div className="w-full h-full flex items-center justify-center blur-[5px] opacity-45 scale-90">
+                <div className="w-full h-full flex items-center justify-center blur-[2.5px] opacity-65 scale-95">
                   {renderTattooSymbol(sym, false)}
                 </div>
               </div>
@@ -387,9 +388,9 @@ const ReelColumnComponent: React.FC<{
       ) : (
         <motion.div 
           className="flex flex-col absolute top-0 left-0 w-full h-full"
-          initial={{ y: "-15%" }}
+          initial={{ y: isTurbo === 'super' ? "-3%" : "-8%" }}
           animate={{ y: "0%" }}
-          transition={{ type: "spring", stiffness: 350, damping: 22, mass: 0.9 }}
+          transition={{ type: "spring", stiffness: 520, damping: 28, mass: 0.45 }}
         >
           {symbols.map((sym, rIndex) => {
             const isWinning = winningPositions.some(p => p.r === rIndex && p.c === colIndex);
@@ -567,6 +568,7 @@ export function TattooSlot() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [spinningCols, setSpinningCols] = useState<boolean[]>([false, false, false, false, false]);
+  const [pendingSpinOutcome, setPendingSpinOutcome] = useState<TattooSlotSpinResponse | null>(null);
 
   // Wins and Highlights
   const [winningPositions, setWinningPositions] = useState<{r: number; c: number}[]>([]);
@@ -772,7 +774,48 @@ export function TattooSlot() {
     }
   };
 
-  // Main Spin Core Function
+  // Refactored useEffect for Backend Probability-driven Reel Landing
+  useEffect(() => {
+    if (!pendingSpinOutcome) return;
+
+    const outcome = pendingSpinOutcome;
+    setPendingSpinOutcome(null);
+
+    // Instant stop mode
+    if (isTurbo === 'instant') {
+      setGrid(outcome.finalGrid);
+      setSpinningCols([false, false, false, false, false]);
+      finalizeSpin(outcome);
+      return;
+    }
+
+    // Set authoritative final grid for the landing reels
+    setGrid(outcome.finalGrid);
+
+    // Stagger column stops
+    const durations = isTurbo === 'super' 
+      ? [60, 90, 120, 150, 180]
+      : isTurbo === 'turbo'
+        ? [120, 170, 220, 270, 320]
+        : [200, 320, 440, 560, 680];
+
+    durations.forEach((delay, idx) => {
+      setTimeout(() => {
+        setSpinningCols(prev => {
+          const next = [...prev];
+          next[idx] = false;
+          return next;
+        });
+        playSfx('click');
+
+        if (idx === COLS - 1) {
+          finalizeSpin(outcome);
+        }
+      }, delay);
+    });
+  }, [pendingSpinOutcome]);
+
+  // Main Spin Core Function (Backend Probability First)
   const spin = async () => {
     if (isSpinning) return;
     
@@ -784,150 +827,46 @@ export function TattooSlot() {
       return;
     }
 
+    // 0ms Instant visual & audio response
     setIsSpinning(true);
     setWinAmount(0);
     setShowWinCelebration(false);
     setShowBigWin(false);
     setWinningPositions([]);
     setIsShaking(false);
-
-    // Deduct Balance
-    if (!freeSpinsActive) {
-      await updateBalance(-cost, 'bet', 'tattoo-slot', { bet: cost });
-    }
-
     playSfx('spin');
 
-    // Query target prize
-    let currentTarget = 0;
-    try {
-      if (user) {
-        const { amount } = await PrizeService.getTargetPrize(user.id, 'slots');
-        currentTarget = amount;
-      }
-    } catch (err) {
-      console.error("Error retrieving prize:", err);
+    if (isTurbo !== 'instant') {
+      setSpinningCols([true, true, true, true, true]);
     }
 
-    // Generate grid
-    const finalGrid = generateGrid(currentTarget);
+    // Deduct Balance in background
+    const balancePromise = !freeSpinsActive 
+      ? updateBalance(-cost, 'bet', 'tattoo-slot', { bet: cost })
+      : Promise.resolve();
 
-    // Instant stop bypasses spinning
-    if (isTurbo === 'instant') {
-      setGrid(finalGrid);
-      evaluateWinnings(finalGrid);
-      return;
-    }
-
-    // Trigger spinning animation for all columns
-    setSpinningCols([true, true, true, true, true]);
-
-    // Animate grid change
-    setGrid(finalGrid);
-
-    // Stagger column stops
-    const durations = isTurbo === 'super' 
-      ? [100, 150, 200, 250, 300]
-      : isTurbo === 'turbo'
-        ? [250, 350, 450, 550, 650]
-        : [500, 800, 1100, 1400, 1700];
-
-    durations.forEach((delay, idx) => {
-      setTimeout(() => {
-        setSpinningCols(prev => {
-          const next = [...prev];
-          next[idx] = false;
-          return next;
-        });
-        playSfx('click');
-
-        // On the final column stop, evaluate
-        if (idx === COLS - 1) {
-          evaluateWinnings(finalGrid, currentTarget);
-        }
-      }, delay);
+    // Authoritative backend probability & outcome calculation
+    const backendResult = await SlotService.requestSpin({
+      userId: user?.id,
+      gameId: 'tattoo-slot',
+      baseBet,
+      activeBet,
+      freeSpinsActive,
+      freeSpinsMultiplier,
+      doubleChance,
     });
+
+    await balancePromise;
+
+    // Trigger state machine for landing
+    setPendingSpinOutcome(backendResult);
   };
 
-  // Evaluate final grid ways to win
-  const evaluateWinnings = async (finalGrid: string[][], targetCap = 999999) => {
-    const PAYTABLE: Record<string, number[]> = {
-      'HEART': [0, 0, 0, 2.5, 5.0, 12.0],
-      'MACHINE': [0, 0, 0, 2.0, 4.0, 8.0],
-      'INK': [0, 0, 0, 1.5, 3.0, 6.0],
-      'BOOTS': [0, 0, 0, 1.2, 2.5, 5.0],
-      'NEEDLE': [0, 0, 0, 1.0, 2.0, 4.0],
-      'A': [0, 0, 0, 0.6, 1.2, 2.5],
-      'K': [0, 0, 0, 0.5, 1.0, 2.0],
-      'Q': [0, 0, 0, 0.4, 0.8, 1.6],
-      'J': [0, 0, 0, 0.3, 0.6, 1.2],
-      '10': [0, 0, 0, 0.2, 0.4, 0.8],
-    };
-
-    let totalWin = 0;
-    let newWinningPositions: {r: number; c: number}[] = [];
-
-    // Count scatter symbols
-    let scatterCount = 0;
-    finalGrid.forEach(row => {
-      row.forEach(symbol => {
-        if (symbol === 'SCATTER') scatterCount++;
-      });
-    });
-
-    const scatterTriggered = scatterCount >= 3;
-
-    // Check adjacent columns for ways to win (left-to-right)
-    Object.keys(PAYTABLE).forEach(symbol => {
-      let ways = 1;
-      let matchCount = 0;
-      let tempPositions: {r: number; c: number}[] = [];
-
-      for (let c = 0; c < COLS; c++) {
-        let countInCol = 0;
-        let colPositions: {r: number; c: number}[] = [];
-
-        for (let r = 0; r < ROWS; r++) {
-          if (finalGrid[r][c] === symbol || finalGrid[r][c] === 'WILD') {
-            countInCol++;
-            colPositions.push({ r, c });
-          }
-        }
-
-        if (countInCol > 0) {
-          ways *= countInCol;
-          matchCount++;
-          tempPositions.push(...colPositions);
-        } else {
-          break; // Must be consecutive from column 1
-        }
-      }
-
-      if (matchCount >= 3) {
-        const payoutMultiplier = PAYTABLE[symbol][matchCount];
-        if (payoutMultiplier > 0) {
-          const winMultiplier = freeSpinsActive ? freeSpinsMultiplier : 1;
-          let cashWin = baseBet * payoutMultiplier * ways * winMultiplier;
-          
-          // CAP BY TARGET
-          if (targetCap > 0) {
-            const remainingCap = targetCap - totalWin;
-            if (cashWin > remainingCap) {
-              cashWin = Math.max(0, remainingCap);
-            }
-          }
-
-          totalWin += cashWin;
-
-          // Push positions
-          tempPositions.forEach(pos => {
-            if (pos.c < matchCount && !newWinningPositions.some(p => p.r === pos.r && p.c === pos.c)) {
-              newWinningPositions.push(pos);
-            }
-          });
-        }
-      }
-    });
+  // Finalize spin and settle payout and free spins
+  const finalizeSpin = async (outcome: TattooSlotSpinResponse) => {
+    const totalWin = outcome.totalWin;
+    const newWinningPositions = outcome.winningPositions;
+    const scatterTriggered = outcome.scatterCount >= 3;
 
     // Payout logic
     if (totalWin > 0) {
@@ -974,7 +913,6 @@ export function TattooSlot() {
     // Decrement free spins or autoplay
     if (freeSpinsActive && freeSpins > 0) {
       setFreeSpins(prev => prev - 1);
-      // Increment free spins multiplier on every win during free spins
       if (totalWin > 0) {
         setFreeSpinsMultiplier(prev => prev + 1);
       }

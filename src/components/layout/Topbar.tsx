@@ -41,6 +41,7 @@ export function Topbar() {
       <header className="fixed top-0 w-full max-w-md left-1/2 -translate-x-1/2 h-16 glass-panel z-50 flex items-center justify-between px-4 shadow-2xl border-b border-border-rgba">
         <div className="flex items-center gap-3">
           <button 
+            id="menu-drawer-btn"
             onClick={handleMenuClick}
             className="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-card text-text-muted hover:text-text-main hover:bg-surface-card/85 transition-all border border-border-rgba active:scale-95"
           >
@@ -344,6 +345,26 @@ export function Topbar() {
                     </div>
                     <ChevronRight size={12} className="text-text-muted/30" />
                   </a>
+
+                  {/* Como Funciona / Tour trigger */}
+                  <button 
+                    onClick={() => {
+                      closeMenu();
+                      window.dispatchEvent(new CustomEvent('open-home-tour'));
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all text-xs font-semibold text-left border border-amber-500/20 bg-amber-500/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">
+                        <HelpCircle size={14} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span>Como Funciona?</span>
+                        <span className="text-[10px] text-amber-300/60 font-normal">Tour e guia da plataforma</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={12} className="text-amber-400/50" />
+                  </button>
 
                   {/* Responsavel modal trigger */}
                   <button 

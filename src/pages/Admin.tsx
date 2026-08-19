@@ -18,6 +18,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   AreaChart, Area, PieChart, Pie, Cell, Legend 
 } from 'recharts';
+import { getAssetCacheStats, clearAssetCache } from '../lib/assetCache';
 
 type AdminTab = 'dashboard' | 'users' | 'games' | 'create-game' | 'withdrawals' | 'deposits' | 'settings' | 'notifications' | 'promotions' | 'banners' | 'gateway' | 'probability' | 'database';
 
@@ -45,6 +46,28 @@ export function Admin() {
   });
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [cacheStats, setCacheStats] = useState<{ totalImages: number; totalAudio: number; estimatedSizeMB: string }>({
+    totalImages: 0,
+    totalAudio: 0,
+    estimatedSizeMB: '0.00 MB',
+  });
+
+  const refreshCacheStats = async () => {
+    try {
+      const stats = await getAssetCacheStats();
+      setCacheStats(stats);
+    } catch {}
+  };
+
+  const handleClearCache = async () => {
+    try {
+      await clearAssetCache();
+      await refreshCacheStats();
+      toast.success('Cache de assets limpo com sucesso!');
+    } catch {
+      toast.error('Erro ao limpar cache de assets');
+    }
+  };
 
   const syncPayments = async () => {
     setIsSyncing(true);
@@ -177,6 +200,7 @@ export function Admin() {
           setNotifications(notifsData);
           setPromotions(promosData);
           setBanners(bannersData);
+          await refreshCacheStats();
         } catch (error) {
           console.error("Error fetching admin data:", error);
           toast.error("Erro ao carregar dados do painel");
@@ -1422,6 +1446,57 @@ export function Admin() {
               >
                 <Save size={12} />
                 Salvar Configurações Gerais
+              </button>
+            </div>
+
+            {/* Asset Cache Management Card */}
+            <div className={`rounded-2xl border p-4 transition-all ${
+              theme === 'dark' ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100 shadow-sm'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                    <Download size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black tracking-tight uppercase">Cache de Mídias e Assets (IndexedDB)</h3>
+                    <p className={`text-[10px] ${theme === 'dark' ? 'text-white/40' : 'text-gray-400'}`}>
+                      Armazenamento persistente de imagens, capas e áudios para carregamento instantâneo.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={refreshCacheStats}
+                  className={`p-1.5 rounded-lg border transition-all ${
+                    theme === 'dark' ? 'border-white/10 hover:bg-white/5 text-white/60' : 'border-gray-200 hover:bg-gray-100 text-gray-600'
+                  }`}
+                  title="Atualizar estatísticas de cache"
+                >
+                  <RefreshCw size={12} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-gray-100'}`}>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/40' : 'text-gray-400'}`}>Imagens no Cache</span>
+                  <span className="text-sm font-black font-mono text-purple-400">{cacheStats.totalImages}</span>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-gray-100'}`}>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/40' : 'text-gray-400'}`}>Áudios no Cache</span>
+                  <span className="text-sm font-black font-mono text-cyan-400">{cacheStats.totalAudio}</span>
+                </div>
+                <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-white border-gray-100'}`}>
+                  <span className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/40' : 'text-gray-400'}`}>Tamanho Estimado</span>
+                  <span className="text-sm font-black font-mono text-emerald-400">{cacheStats.estimatedSizeMB}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleClearCache}
+                className="w-full py-2 px-3 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white font-black text-[10px] flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Trash2 size={12} />
+                Limpar Cache Local de Assets
               </button>
             </div>
 

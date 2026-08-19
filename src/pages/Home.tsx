@@ -1,27 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
-const JoyrideLazy = React.lazy(() => import('react-joyride').then(module => ({ default: module.Joyride })));
-const Joyride = JoyrideLazy as any;
-import type { Step } from 'react-joyride';
 import { db, GameConfig } from '../data/db';
-import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp, Search, X, Flame } from 'lucide-react';
+import { Play, Trophy, Sparkles, Star, RotateCw, ThumbsUp, Search, X, Flame, HelpCircle } from 'lucide-react';
 import { HeroCarousel } from '../components/home/HeroCarousel';
 import { CategoryFilter } from '../components/home/CategoryFilter';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { RecentWinsFeed } from '../components/home/RecentWinsFeed';
+import { HomeTourModal } from '../components/home/HomeTourModal';
 import { requestNotificationPermission, showNotification } from '../lib/notifications';
-
-const steps: Step[] = [
-  {
-    target: '#deposit-button',
-    content: 'Clique aqui para fazer seu depósito e começar a jogar!',
-  },
-  {
-    target: '#games-section',
-    content: 'Aqui você encontra todos os nossos jogos disponíveis.',
-  },
-];
+import { CachedImage } from '../components/common/CachedImage';
+import { preloadAssets } from '../lib/assetCache';
 
 const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean, badge?: string, isFeatured?: boolean }> = ({ game, aspect = 'aspect-[2/3]', compact = false, badge, isFeatured = false }) => {
   const [hasError, setHasError] = useState(false);
@@ -39,7 +28,7 @@ const GameCard: React.FC<{ game: GameConfig, aspect?: string, compact?: boolean,
         {/* Cover Image */}
         <div className="absolute inset-0 bg-surface-card flex items-center justify-center">
           {game.thumbnail && !hasError ? (
-            <img
+            <CachedImage
               src={game.thumbnail}
               alt={game.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -89,7 +78,6 @@ export function Home() {
   const [games, setGames] = useState<GameConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
-  const [runTour, setRunTour] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const prevGamesCount = useRef(0);
 
@@ -106,17 +94,15 @@ export function Home() {
       prevGamesCount.current = activeGames.length;
       setGames(activeGames);
       setIsLoading(false);
+
+      // Preload game thumbnails into persistent IndexedDB cache
+      const thumbnailUrls = activeGames.map(g => g.thumbnail).filter(Boolean);
+      preloadAssets(thumbnailUrls, 'image').catch(() => {});
     };
     fetchGames();
     
     // Poll for updates every 5 seconds to ensure changes in DB reflect in UI
     const interval = setInterval(fetchGames, 5000);
-
-    // Check tour status
-    const seen = localStorage.getItem('tourSeen');
-    if (!seen) {
-      setRunTour(true);
-    }
 
     return () => clearInterval(interval);
   }, []);
@@ -137,61 +123,53 @@ export function Home() {
 
   return (
     <div className="flex flex-col h-full -m-4 overflow-hidden">
-      <React.Suspense fallback={null}>
-        <Joyride
-          run={runTour}
-          steps={steps}
-          continuous={true}
-          showSkipButton={true}
-          callback={(data) => {
-            if (data.status === 'finished' || data.status === 'skipped') {
-              localStorage.setItem('tourSeen', 'true');
-              setRunTour(false);
-            }
-          }}
-          styles={{
-            options: {
-              primaryColor: '#FFCC00',
-              textColor: '#333',
-              backgroundColor: '#fff',
-            },
-          } as any}
-        />
-      </React.Suspense>
+      {/* Onboarding Tour and Modal Guide */}
+      <HomeTourModal />
       
       {/* Hero Section */}
-      <section className="shrink-0 p-4 pb-0">
+      <section id="hero-section" className="shrink-0 p-4 pb-0">
         <HeroCarousel />
       </section>
 
       {/* Categories */}
-      <section className="shrink-0 py-4 px-4">
+      <section id="category-filter-section" className="shrink-0 py-4 px-4">
         <CategoryFilter active={activeCategory} onChange={(cat) => {
           setActiveCategory(cat);
           setSearchQuery('');
         }} />
       </section>
 
-      {/* Search Bar */}
-      <section className="shrink-0 px-4 pb-2">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted/80 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Pesquisar jogos..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-surface-card border border-border-rgba text-text-main placeholder:text-text-muted/50 text-xs font-semibold pl-10 pr-10 py-2.5 rounded-xl focus:border-brand-primary/40 focus:outline-none transition-all shadow-sm"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-surface-dark transition-all animate-fade-in"
-              title="Limpar pesquisa"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      {/* Search Bar & Tour Replay Button */}
+      <section id="search-section" className="shrink-0 px-4 pb-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted/80 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Pesquisar jogos..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-surface-card border border-border-rgba text-text-main placeholder:text-text-muted/50 text-xs font-semibold pl-10 pr-10 py-2.5 rounded-xl focus:border-brand-primary/40 focus:outline-none transition-all shadow-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-surface-dark transition-all animate-fade-in"
+                title="Limpar pesquisa"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-home-tour'))}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-black transition-all active:scale-95 shrink-0 shadow-sm"
+            title="Como funciona a carteira e os jogos?"
+          >
+            <HelpCircle size={14} />
+            <span className="hidden sm:inline">Guia</span>
+          </button>
         </div>
       </section>
 
@@ -277,7 +255,7 @@ export function Home() {
         )}
 
         {/* Live Winners Feed */}
-        <div className="mt-8 pb-4 px-4">
+        <div id="recent-wins-section" className="mt-8 pb-4 px-4">
           <RecentWinsFeed />
         </div>
       </section>
@@ -308,3 +286,4 @@ function Gamepad2({ className, size }: { className?: string, size?: number }) {
     </svg>
   );
 }
+

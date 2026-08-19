@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db, GameConfig } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService } from '../../services/slotService';
 import { 
   ArrowLeft, 
   Info, 
@@ -280,11 +281,17 @@ export function InkReveal() {
       playSfx('spin');
       
       // Deduct bet amount from user's balance
-      await updateBalance(-bet, 'bet', 'ink-reveal', { bet });
+      const balancePromise = updateBalance(-bet, 'bet', 'ink-reveal', { bet });
       
-      // Call PrizeService to determine outcome matching admin parameters and RTP
-      const targetPrize = await PrizeService.getTargetPrize(user.id, 'slots');
-      const wonAmount = targetPrize.amount;
+      // Start background outcome calculation immediately
+      const outcomePromise = SlotService.requestSpin({
+        userId: user?.id,
+        gameId: 'ink-reveal',
+        bet,
+      });
+
+      const [outcome] = await Promise.all([outcomePromise, balancePromise]);
+      const wonAmount = outcome.winAmount || 0;
 
       // Generate the grid with this predetermined won amount
       const newGrid = generateScratchCard(wonAmount);

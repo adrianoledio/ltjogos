@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAudio } from '../../context/AudioContext';
 import { db } from '../../data/db';
 import { PrizeService } from '../../services/prizeService';
+import { SlotService } from '../../services/slotService';
 import { Info, Coins, RefreshCw, X, ChevronLeft, Volume2, VolumeX, Flame, Sparkles, TrendingUp, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
@@ -231,78 +232,48 @@ export function RoulettaInk() {
       return;
     }
 
+    // 0ms Instant visual & audio response
     setIsSpinning(true);
     setWinAmount(0);
     setShowWinModal(false);
     setShowBigWin(false);
     setShowGambleModal(false);
-
-    // Deduct bet from balance
-    await updateBalance(-bet, 'bet', 'rouletta-ink', { bet });
     playSpinnerSound();
 
-    // Fetch authorized prize target from system settings
-    let targetPrize = 0;
-    try {
-      const result = await PrizeService.getTargetPrize(user.id, 'roletas');
-      targetPrize = result.amount;
-    } catch (error) {
-      console.error('Error fetching target prize:', error);
-    }
+    // Deduct bet from balance in background
+    const balancePromise = updateBalance(-bet, 'bet', 'rouletta-ink', { bet });
 
-    // Determine slice index based on the targeted multiplier
-    let targetMultiplier = targetPrize / bet;
-    
-    // Adjust targetMultiplier if Fever Mode is active (payout is multiplied by 1.5)
-    if (isFeverActive) {
-      targetMultiplier = targetMultiplier / 1.5;
-    }
-
-    let targetSliceIndex = 5; // default to NADA
-    let minDiff = Infinity;
-    
-    WHEEL_SLICES.forEach((slice, idx) => {
-      const diff = Math.abs(slice.value - targetMultiplier);
-      if (diff < minDiff) {
-        minDiff = diff;
-        targetSliceIndex = idx;
-      }
+    // Start background outcome calculation immediately
+    const spinOutcomePromise = SlotService.requestSpin({
+      userId: user?.id,
+      gameId: 'rouletta-ink',
+      bet,
+      isFeverActive,
     });
 
-    const targetSlice = WHEEL_SLICES[targetSliceIndex];
-    let actualPayout = targetSlice.value * bet;
+    const [outcome] = await Promise.all([spinOutcomePromise, balancePromise]);
 
-    // Apply Fever Mode Multiplier if active
-    if (isFeverActive && actualPayout > 0) {
-      actualPayout = Math.round(actualPayout * 1.5 * 10) / 10;
-    }
-    
-    // STRICT CAP BY TARGET
-    if (targetPrize > 0 && actualPayout > targetPrize) {
-      actualPayout = targetPrize;
-    }
+    const targetSliceIndex = outcome.targetSliceIndex !== undefined ? outcome.targetSliceIndex : 5;
+    const actualPayout = outcome.actualPayout || 0;
 
     const sliceAngle = 360 / WHEEL_SLICES.length;
     const currentSpins = Math.floor(wheelRotation / 360);
-    const baseRotation = (currentSpins + 6) * 360; 
+    const baseRotation = (currentSpins + 5) * 360; 
     
-    // Beautiful random natural rotation offset within the slice boundaries
     const targetAngle = baseRotation - (targetSliceIndex * sliceAngle) + (Math.random() * (sliceAngle - 6) - (sliceAngle / 2 - 3));
 
     setWheelRotation(targetAngle);
 
-    // Timing wheel deceleration (5 seconds)
+    // Timing wheel deceleration
     setTimeout(async () => {
       setIsSpinning(false);
       setWinAmount(actualPayout);
 
       // Manage Fever state progression
       if (isFeverActive) {
-        // Fever spin completes, reset
         setIsFeverActive(false);
         setFeverSpins(0);
       } else {
-        // Increment fever spins progress towards fever mode
         setFeverSpins(prev => {
           const next = prev + 1;
           if (next >= 5) {
@@ -322,13 +293,11 @@ export function RoulettaInk() {
         await updateBalance(actualPayout, 'win', 'rouletta-ink', { winAmount: actualPayout });
         await PrizeService.commitPrize(user.id, actualPayout);
 
-        // Update winners list
         setWinnersList(prev => [
-          { name: user.name, prize: actualPayout, time: 'agora mesmo' },
+          { name: user.name || 'Você', prize: actualPayout, time: 'agora mesmo' },
           ...prev.slice(0, 4)
         ]);
 
-        // Show standard win or big win celebration
         if (actualPayout >= bet * 15) {
           setShowBigWin(true);
           triggerBigWinConfetti();
@@ -337,22 +306,20 @@ export function RoulettaInk() {
           triggerWinConfetti(actualPayout, bet);
         }
 
-        // Prepare Double or Nothing gamble opportunity
         setGambleAmount(actualPayout);
         setGambleResult(null);
         setSelectedBottle(null);
         
-        // Open gamble choice modal after a brief victory pause
         setTimeout(() => {
           setShowGambleModal(true);
-        }, 1200);
+        }, 1000);
 
       } else {
         if (!isMuted) playSfx('click');
         toast.info('Não foi dessa vez! Tente novamente!');
       }
       if (refreshUser) refreshUser();
-    }, 5000);
+    }, 2400);
   };
 
   // HANDLE DOUBLE OR NOTHING GAMBLE MECHANICS
@@ -551,7 +518,7 @@ export function RoulettaInk() {
             {/* Spinning Wheel Face */}
             <motion.div
               animate={{ rotate: wheelRotation }}
-              transition={isSpinning ? { duration: 5, ease: [0.15, 0.85, 0.35, 1] } : { duration: 0 }}
+              transition={isSpinning ? { duration: 2.4, ease: [0.15, 0.85, 0.35, 1] } : { duration: 0 }}
               className="w-full h-full rounded-full bg-slate-950 relative overflow-hidden border border-amber-400/40 shadow-inner"
             >
               {/* Dynamic Sectors Drawing */}

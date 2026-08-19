@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { db } from '../data/db';
+import { getCachedAudioUrl } from '../lib/assetCache';
 
 type SfxType = 'spin' | 'win' | 'click' | 'lose' | 'diamond' | 'bigwin' | 'scatter' | 'bonus' | 'fever' | 'cascade';
 
@@ -412,7 +413,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const initAudio = async () => {
       const settings = await db.getSettings();
       if (settings.globalMusic) {
-        globalAudioRef.current = new Audio(settings.globalMusic);
+        const audioSrc = await getCachedAudioUrl(settings.globalMusic);
+        globalAudioRef.current = new Audio(audioSrc || settings.globalMusic);
         globalAudioRef.current.loop = true;
         globalAudioRef.current.volume = 0.15;
         if (!isMuted) {
@@ -474,18 +476,31 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     if (!url || !url.trim()) return;
 
-    try {
-      const audio = new Audio(url.trim());
-      audio.loop = true;
-      audio.volume = 0.15; // Ambient background music volume
-      audio.muted = isMutedRef.current;
-      gameAudioRef.current = audio;
-      audio.play().catch((err) => {
-        console.warn('Playback of external audio URL blocked or failed:', err);
-      });
-    } catch (err) {
-      console.warn('Error loading audio URL:', err);
-    }
+    const trimmedUrl = url.trim();
+
+    getCachedAudioUrl(trimmedUrl).then((cachedSrc) => {
+      try {
+        const audio = new Audio(cachedSrc || trimmedUrl);
+        audio.loop = true;
+        audio.volume = 0.15; // Ambient background music volume
+        audio.muted = isMutedRef.current;
+        gameAudioRef.current = audio;
+        audio.play().catch((err) => {
+          console.warn('Playback of external audio URL blocked or failed:', err);
+        });
+      } catch (err) {
+        console.warn('Error loading audio URL:', err);
+      }
+    }).catch(() => {
+      try {
+        const audio = new Audio(trimmedUrl);
+        audio.loop = true;
+        audio.volume = 0.15;
+        audio.muted = isMutedRef.current;
+        gameAudioRef.current = audio;
+        audio.play().catch(() => {});
+      } catch {}
+    });
   };
 
   const stopGameMusic = () => {
