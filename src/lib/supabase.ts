@@ -84,7 +84,22 @@ export function getValidSupabaseCredentials(customUrl?: string, customKey?: stri
 const { url: supabaseUrl, key: supabaseAnonKey } = getValidSupabaseCredentials();
 
 export { supabaseUrl, supabaseAnonKey };
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey && supabaseAnonKey !== 'placeholder-key');
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl &&
+  supabaseAnonKey &&
+  supabaseAnonKey !== 'placeholder-key' &&
+  !supabaseUrl.includes('izsolrtvzkrpmtpmzok.supabase.co') &&
+  (supabaseAnonKey.startsWith('eyJ') || supabaseAnonKey.length > 20)
+);
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co',
+  isSupabaseConfigured ? supabaseAnonKey : 'placeholder-key',
+  {
+    auth: {
+      persistSession: isSupabaseConfigured,
+      autoRefreshToken: isSupabaseConfigured
+    }
+  }
+);
 

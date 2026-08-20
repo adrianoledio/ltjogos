@@ -12,7 +12,7 @@ import {
   Sun, Moon, Plus, ArrowDownToLine, Trash2, Send,
   TrendingUp, BarChart3, PieChart as PieChartIcon,
   AlertCircle, RefreshCw, Download, Filter, Search,
-  Target, Flame
+  Target, Flame, Zap
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -91,67 +91,62 @@ export function Admin() {
 
       // 2. Client-side fallback if API didn't approve anything or failed
       if (!apiSuccess || approvedCount === 0) {
-        const currentSettings = settings.mpAccessToken ? settings : await db.getSettings();
-        const token = currentSettings?.mpAccessToken?.trim();
+        const currentSettings = await db.getSettings();
+        let token = (currentSettings?.pixupToken || settings.pixupToken)?.trim();
+        const cId = (currentSettings?.pixupClientId || settings.pixupClientId || 'adrianoledio_f27410f412960abf')?.trim();
+        const cSecret = (currentSettings?.pixupClientSecret || settings.pixupClientSecret)?.trim();
+
+        if (!token && cId && cSecret) {
+          try {
+            const basicAuth = btoa(`${cId}:${cSecret}`);
+            const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+              method: "POST",
+              headers: {
+                "Authorization": `Basic ${basicAuth}`,
+                "Content-Type": "application/json"
+              }
+            });
+            if (authRes.ok) {
+              const authData = await authRes.json();
+              token = authData.access_token || authData.accessToken || authData.token || authData.data?.access_token;
+            }
+          } catch (authErr) {
+            console.warn("Client fallback OAuth error:", authErr);
+          }
+        }
 
         if (token) {
           try {
-            const mpSearchRes = await fetch("https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&limit=50", {
-              headers: { "Authorization": `Bearer ${token}` }
-            });
+            const allTxs = await db.getTransactions();
+            const pendingDeposits = allTxs.filter(t => t.type === 'deposit' && t.status === 'pending');
 
-            if (mpSearchRes.ok) {
-              const searchData = await mpSearchRes.json();
-              const mpApproved = (searchData.results || []).filter((p: any) => p.status === "approved");
+            for (const tx of pendingDeposits) {
+              const metadata = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : (tx.metadata || {});
+              const pixupTxId = metadata?.pixupTransactionId || metadata?.mpPaymentId;
 
-              const allTxs = await db.getTransactions();
-              const pendingDeposits = allTxs.filter(t => t.type === 'deposit' && t.status === 'pending');
+              let isApproved = false;
 
-              for (const tx of pendingDeposits) {
-                const metadata = typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : (tx.metadata || {});
-                const mpPaymentId = metadata?.mpPaymentId;
-
-                let isApproved = false;
-
-                if (mpPaymentId) {
-                  const directMatch = mpApproved.find((p: any) => String(p.id) === String(mpPaymentId));
-                  if (directMatch) {
-                    isApproved = true;
-                  } else {
-                    try {
-                      const directRes = await fetch(`https://api.mercadopago.com/v1/payments/${mpPaymentId}`, {
-                        headers: { "Authorization": `Bearer ${token}` }
-                      });
-                      if (directRes.ok) {
-                        const directData = await directRes.json();
-                        if (directData?.status === "approved") {
-                          isApproved = true;
-                        }
-                      }
-                    } catch (e) {
-                      console.warn("Direct MP fetch error:", e);
-                    }
-                  }
-                }
-
-                if (!isApproved) {
-                  const amountMatch = mpApproved.find((p: any) => {
-                    if (Number(p.transaction_amount) === Number(tx.amount)) {
-                      const txTime = new Date(tx.date || (tx as any).createdAt).getTime();
-                      const mpTime = new Date(p.date_created || p.date_approved).getTime();
-                      return Math.abs(txTime - mpTime) < 2 * 60 * 60 * 1000;
-                    }
-                    return false;
+              if (pixupTxId) {
+                try {
+                  const directRes = await fetch(`https://api.pixupbr.com/v2/transactions/${pixupTxId}`, {
+                    headers: { "Authorization": `Bearer ${token}` }
                   });
-                  if (amountMatch) {
-                    isApproved = true;
+                  if (directRes.ok) {
+                    const directData = await directRes.json();
+                    const txInfo = directData?.data || directData;
+                    const status = (txInfo?.status || '').toLowerCase();
+                    if (status === "completed" || status === "confirmed" || status === "approved" || status === "paid") {
+                      isApproved = true;
+                    }
                   }
+                } catch (e) {
+                  console.warn("Direct PixUP fetch error:", e);
                 }
+              }
 
-                if (isApproved) {
-                  await handleApproveDeposit(tx);
-                  approvedCount++;
-                }
+              if (isApproved) {
+                await handleApproveDeposit(tx);
+                approvedCount++;
               }
             }
           } catch (clientErr) {
@@ -166,11 +161,11 @@ export function Admin() {
       if (approvedCount > 0) {
         toast.success(`${approvedCount} depósito(s) aprovado(s) com sucesso!`);
       } else {
-        toast.info("Nenhum depósito pendente com pagamento aprovado no Mercado Pago.");
+        toast.info("Nenhum depósito pendente com pagamento aprovado na PixUP.");
       }
     } catch (e) {
       console.warn("Sync payments error:", e);
-      toast.error("Erro ao sincronizar com Mercado Pago.");
+      toast.error("Erro ao sincronizar com PixUP.");
     } finally {
       setIsSyncing(false);
     }
@@ -211,6 +206,30 @@ export function Admin() {
     };
     fetchData();
   }, [user]);
+
+  const handleResetFinancialData = async () => {
+    const confirmed = window.confirm("Tem certeza que deseja ZERAR todos os dados de depósitos, saques, apostas, GGR e saldos de usuários? Todos os usuários cadastrados serão MANTIDOS.");
+    if (!confirmed) return;
+
+    try {
+      setIsLoading(true);
+      await db.resetFinancialData();
+      const [updatedUsers, updatedTxs, updatedSettings] = await Promise.all([
+        db.getUsers(),
+        db.getTransactions(),
+        db.getSettings()
+      ]);
+      setUsers(updatedUsers);
+      setTransactions(updatedTxs);
+      setSettings(updatedSettings);
+      toast.success("Dados financeiros e saldos zerados com sucesso! Usuários mantidos.");
+    } catch (error) {
+      console.error("Erro ao zerar dados financeiros:", error);
+      toast.error("Erro ao zerar dados financeiros");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (user?.role !== 'admin' || !settings) {
     return <div className="text-center mt-20 text-red-500 font-bold text-sm">Acesso Negado ou Carregando...</div>;
@@ -494,9 +513,19 @@ export function Admin() {
           <div className="space-y-3 animate-in fade-in">
             <div className="flex items-center justify-between mb-0.5">
               <h2 className="text-sm font-black tracking-tighter uppercase">Visão Geral</h2>
-              <div className="flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                <span className={`text-[7px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/40' : 'text-gray-400'}`}>Tempo Real</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleResetFinancialData}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-[8px] font-black uppercase tracking-widest transition-all"
+                  title="Zerar todos os depósitos, saques, apostas e saldos mantendo usuários"
+                >
+                  <Trash2 size={10} />
+                  Zerar Dados (Manter Usuários)
+                </button>
+                <div className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className={`text-[7px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/40' : 'text-gray-400'}`}>Tempo Real</span>
+                </div>
               </div>
             </div>
 
@@ -1912,9 +1941,9 @@ export function Admin() {
           <div className="animate-in fade-in max-w-lg">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-base font-black tracking-tighter uppercase">Gateway de Pagamento</h2>
+                <h2 className="text-base font-black tracking-tighter uppercase">Gateway de Pagamento (PixUP)</h2>
                 <p className={`text-[9px] font-medium mt-0.5 ${theme === 'dark' ? 'text-white/40' : 'text-gray-500'}`}>
-                  Configure as credenciais do Mercado Pago para PIX.
+                  Configure seu Client ID, Client Secret e URL de Postback para processamento automático de PIX.
                 </p>
               </div>
               <button
@@ -1932,41 +1961,83 @@ export function Admin() {
 
             <div className={`p-4 rounded-2xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                  <DollarSign size={16} className="text-blue-500" />
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <Zap size={16} className="text-emerald-500" />
                 </div>
                 <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-widest">Mercado Pago (PIX)</h3>
-                  <p className={`text-[8px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Integração Direta</p>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest">PixUP Gateway (OAuth 2.0 PIX)</h3>
+                  <p className={`text-[8px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`}>Autenticação Client ID & Secret</p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-0.5">
-                  <label className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>Access Token</label>
+                  <label className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>
+                    Client ID PixUP
+                  </label>
                   <input
-                    type="password"
-                    value={settings.mpAccessToken || ''}
-                    onChange={(e) => setSettings({ ...settings, mpAccessToken: e.target.value })}
-                    placeholder="APP_USR-..."
+                    type="text"
+                    value={settings.pixupClientId || 'adrianoledio_f27410f412960abf'}
+                    onChange={(e) => setSettings({ ...settings, pixupClientId: e.target.value })}
+                    placeholder="adrianoledio_f27410f412960abf"
                     className={`w-full rounded-lg px-2 py-1.5 text-[10px] font-black transition-all outline-none border ${
                       theme === 'dark' ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
                     }`}
                   />
-                  <p className={`text-[7px] font-black uppercase tracking-widest mt-1 ${theme === 'dark' ? 'text-white/20' : 'text-gray-400'}`}>
-                    Obtenha seu token em: <a href="https://www.mercadopago.com.br/developers/panel" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:underline">Painel do Desenvolvedor</a>
+                </div>
+
+                <div className="space-y-0.5">
+                  <label className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>
+                    Client Secret PixUP
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.pixupClientSecret || ''}
+                    onChange={(e) => setSettings({ ...settings, pixupClientSecret: e.target.value })}
+                    placeholder="Cole seu Client Secret da PixUP aqui..."
+                    className={`w-full rounded-lg px-2 py-1.5 text-[10px] font-black transition-all outline-none border ${
+                      theme === 'dark' ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
+                    }`}
+                  />
+                  <p className={`text-[7px] font-black uppercase tracking-widest mt-0.5 ${theme === 'dark' ? 'text-white/20' : 'text-gray-400'}`}>
+                    Obtido em API {'>'} Credenciais no painel PixUP.
                   </p>
                 </div>
 
-                <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-blue-500/5 border-blue-500/10' : 'bg-blue-50 border-blue-100'}`}>
+                <div className="space-y-0.5">
+                  <label className={`block text-[8px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-white/30' : 'text-gray-400'}`}>
+                    URL de Postback (Webhook)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.pixupPostbackUrl || 'https://ltjogos.vercel.app/webhook'}
+                    onChange={(e) => setSettings({ ...settings, pixupPostbackUrl: e.target.value })}
+                    placeholder="https://ltjogos.vercel.app/webhook"
+                    className={`w-full rounded-lg px-2 py-1.5 text-[10px] font-black transition-all outline-none border ${
+                      theme === 'dark' ? 'bg-black/40 border-white/5 text-white focus:border-emerald-500/50' : 'bg-white border-gray-200 text-gray-900 focus:border-emerald-500/50'
+                    }`}
+                  />
+                  <p className={`text-[7px] font-black uppercase tracking-widest mt-0.5 ${theme === 'dark' ? 'text-white/20' : 'text-gray-400'}`}>
+                    Enviada no parâmetro <code className="text-emerald-500">postback_url</code> na criação do PIX.
+                  </p>
+                </div>
+
+                <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-emerald-50 border-emerald-100'}`}>
                   <div className="flex gap-1.5">
-                    <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                      <span className="text-[8px] font-black text-white">!</span>
+                    <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[8px] font-black text-white">✓</span>
                     </div>
-                    <p className={`text-[9px] font-bold leading-relaxed ${theme === 'dark' ? 'text-blue-200/60' : 'text-blue-800'}`}>
-                      Webhook no Mercado Pago: <br />
-                      <code className="bg-black/20 px-1 rounded select-all">{`${window.location.origin}/api/webhooks/mercadopago`}</code>
-                    </p>
+                    <div className="space-y-0.5">
+                      <p className={`text-[9px] font-bold leading-relaxed ${theme === 'dark' ? 'text-emerald-200/80' : 'text-emerald-800'}`}>
+                        URL configurada para Webhook:
+                      </p>
+                      <code className="block bg-black/30 p-1 rounded text-[8px] text-emerald-400 font-mono select-all break-all">
+                        {settings.pixupPostbackUrl || "https://ltjogos.vercel.app/webhook"}
+                      </code>
+                      <p className={`text-[7px] font-medium mt-0.5 ${theme === 'dark' ? 'text-white/40' : 'text-gray-500'}`}>
+                        Recebe eventos de confirmação <code className="text-emerald-400">cashin.confirmed</code> e aprova saldo instantaneamente.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

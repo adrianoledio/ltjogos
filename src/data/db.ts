@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const calaveraInkCover = '/images/calavera_ink_cover_1784495373476.jpg';
 
@@ -81,6 +81,10 @@ export interface SystemSettings {
   lastPlatformPrizeDate: string;
   gamePrizes: GamePrizeConfig[];
   referralsForFirstWithdrawal: number;
+  pixupClientId?: string;
+  pixupClientSecret?: string;
+  pixupPostbackUrl?: string;
+  pixupToken?: string;
   mpAccessToken?: string;
   resendApiKey?: string;
   smtpHost?: string;
@@ -245,6 +249,10 @@ const DEFAULT_SETTINGS: SystemSettings = {
   limitePlataformaDiario: 500,
   platformDailyPrizeTotal: 0,
   lastPlatformPrizeDate: new Date().toISOString().split('T')[0],
+  pixupClientId: 'adrianoledio_f27410f412960abf',
+  pixupClientSecret: '',
+  pixupPostbackUrl: 'https://ltjogos.vercel.app/webhook',
+  pixupToken: '',
   mpAccessToken: '',
   adminDepositAlertThreshold: 100,
   gamePrizes: [
@@ -319,20 +327,22 @@ class LocalDB {
     // Background revalidation
     (async () => {
       try {
-        const { data, error } = await supabase.from('users').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
-          const formatted = data.map((u: any) => {
-            const localUser = cachedMap.get(u.id);
-            return {
-              ...u,
-              lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined,
-              unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
-              referralCounted: !!u.referralCounted
-            };
-          });
-          this.setStorageItem('lt_users', formatted);
-          return;
+        if (isSupabaseConfigured) {
+          const { data, error } = await supabase.from('users').select('*');
+          if (!error && Array.isArray(data) && data.length > 0) {
+            const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
+            const formatted = data.map((u: any) => {
+              const localUser = cachedMap.get(u.id);
+              return {
+                ...u,
+                lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined,
+                unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
+                referralCounted: !!u.referralCounted
+              };
+            });
+            this.setStorageItem('lt_users', formatted);
+            return;
+          }
         }
       } catch (e) {
         // silent
@@ -404,27 +414,31 @@ class LocalDB {
         referralCounted: updatedUser.referralCounted ? true : false,
         phone: updatedUser.phone || null
       };
-      let { error } = await supabase.from('users').upsert(payload);
-      if (error && (error.message?.toLowerCase().includes("column") || error.message?.toLowerCase().includes("does not exist") || error.message?.toLowerCase().includes("schema"))) {
-        delete payload.lastLoginBonusDate;
-        delete payload.phone;
-        const res2 = await supabase.from('users').upsert(payload);
-        error = res2.error;
-        if (error && error.message?.toLowerCase().includes("column")) {
-          const minimalPayload = {
-            id: payload.id,
-            name: payload.name,
-            email: payload.email,
-            password: payload.password,
-            role: payload.role,
-            balance: payload.balance,
-            earnings: payload.earnings,
-            createdAt: payload.createdAt,
-            dailyPrizeTotal: payload.dailyPrizeTotal || 0,
-            lastPrizeDate: payload.lastPrizeDate || null
-          };
-          const res3 = await supabase.from('users').upsert(minimalPayload);
-          error = res3.error;
+      let error: any = null;
+      if (isSupabaseConfigured) {
+        let res = await supabase.from('users').upsert(payload);
+        error = res.error;
+        if (error && (error.message?.toLowerCase().includes("column") || error.message?.toLowerCase().includes("does not exist") || error.message?.toLowerCase().includes("schema"))) {
+          delete payload.lastLoginBonusDate;
+          delete payload.phone;
+          const res2 = await supabase.from('users').upsert(payload);
+          error = res2.error;
+          if (error && error.message?.toLowerCase().includes("column")) {
+            const minimalPayload = {
+              id: payload.id,
+              name: payload.name,
+              email: payload.email,
+              password: payload.password,
+              role: payload.role,
+              balance: payload.balance,
+              earnings: payload.earnings,
+              createdAt: payload.createdAt,
+              dailyPrizeTotal: payload.dailyPrizeTotal || 0,
+              lastPrizeDate: payload.lastPrizeDate || null
+            };
+            const res3 = await supabase.from('users').upsert(minimalPayload);
+            error = res3.error;
+          }
         }
       }
       if (error) {
@@ -453,10 +467,12 @@ class LocalDB {
     this.setStorageItem('lt_users', filtered);
 
     // Supabase delete
-    try {
-      await supabase.from('users').delete().eq('id', userId);
-    } catch (error) {
-      console.error("Direct Supabase user delete failed:", error);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('users').delete().eq('id', userId);
+      } catch (error) {
+        console.error("Direct Supabase user delete failed:", error);
+      }
     }
 
     // Sync to API
@@ -471,14 +487,16 @@ class LocalDB {
 
   // Transactions
   async getTransactions(): Promise<Transaction[]> {
-    try {
-      const { data, error } = await supabase.from('transactions').select('*');
-      if (!error && Array.isArray(data)) {
-        this.setStorageItem('lt_transactions', data);
-        return data;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('transactions').select('*');
+        if (!error && Array.isArray(data)) {
+          this.setStorageItem('lt_transactions', data);
+          return data;
+        }
+      } catch (e) {
+        console.warn("Could not fetch transactions from direct Supabase client:", e);
       }
-    } catch (e) {
-      console.warn("Could not fetch transactions from direct Supabase client:", e);
     }
 
     try {
@@ -510,11 +528,13 @@ class LocalDB {
     this.setStorageItem('lt_transactions', transactions);
 
     // Direct Supabase insert ALWAYS
-    try {
-      const { error } = await supabase.from('transactions').upsert(newTx);
-      if (error) console.error("Direct Supabase transaction insert error:", error);
-    } catch (err) {
-      console.error("Direct Supabase transaction insert failed:", err);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('transactions').upsert(newTx);
+        if (error) console.error("Direct Supabase transaction insert error:", error);
+      } catch (err) {
+        console.error("Direct Supabase transaction insert failed:", err);
+      }
     }
 
     // Sync to API
@@ -541,11 +561,13 @@ class LocalDB {
     }
 
     // Direct Supabase update ALWAYS
-    try {
-      const { error } = await supabase.from('transactions').upsert(tx);
-      if (error) console.error("Direct Supabase transaction update error:", error);
-    } catch (err) {
-      console.error("Direct Supabase transaction update failed:", err);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('transactions').upsert(tx);
+        if (error) console.error("Direct Supabase transaction update error:", error);
+      } catch (err) {
+        console.error("Direct Supabase transaction update failed:", err);
+      }
     }
 
     // Sync to API
@@ -568,15 +590,17 @@ class LocalDB {
 
     // Asynchronous background revalidation so UI never blocks
     (async () => {
-      try {
-        const { data, error } = await supabase.from('games').select('*');
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const formatted = data.map(g => ({ ...g, active: !!g.active, featured: !!g.featured }));
-          this.setStorageItem('lt_games', formatted);
-          return;
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.from('games').select('*');
+          if (!error && Array.isArray(data) && data.length > 0) {
+            const formatted = data.map(g => ({ ...g, active: !!g.active, featured: !!g.featured }));
+            this.setStorageItem('lt_games', formatted);
+            return;
+          }
+        } catch (e) {
+          // Silent background fallback
         }
-      } catch (e) {
-        // Silent background fallback
       }
 
       try {
@@ -613,32 +637,34 @@ class LocalDB {
     this.setStorageItem('lt_games', games);
 
     // Direct Supabase upsert ALWAYS
-    try {
-      const payload: any = {
-        id: updatedGame.id,
-        name: updatedGame.name,
-        active: updatedGame.active ? true : false,
-        minBet: updatedGame.minBet,
-        maxBet: updatedGame.maxBet,
-        rtp: updatedGame.rtp,
-        thumbnail: updatedGame.thumbnail || '',
-        bgPage: updatedGame.bgPage || '',
-        bgContainer: updatedGame.bgContainer || '',
-        bgMusic: updatedGame.bgMusic || '',
-        category: updatedGame.category || 'slots',
-        featured: updatedGame.featured ? true : false,
-      };
-      let { error } = await supabase.from('games').upsert(payload);
-      if (error && error.message?.toLowerCase().includes("featured")) {
-        delete payload.featured;
-        const res2 = await supabase.from('games').upsert(payload);
-        error = res2.error;
+    if (isSupabaseConfigured) {
+      try {
+        const payload: any = {
+          id: updatedGame.id,
+          name: updatedGame.name,
+          active: updatedGame.active ? true : false,
+          minBet: updatedGame.minBet,
+          maxBet: updatedGame.maxBet,
+          rtp: updatedGame.rtp,
+          thumbnail: updatedGame.thumbnail || '',
+          bgPage: updatedGame.bgPage || '',
+          bgContainer: updatedGame.bgContainer || '',
+          bgMusic: updatedGame.bgMusic || '',
+          category: updatedGame.category || 'slots',
+          featured: updatedGame.featured ? true : false,
+        };
+        let { error } = await supabase.from('games').upsert(payload);
+        if (error && error.message?.toLowerCase().includes("featured")) {
+          delete payload.featured;
+          const res2 = await supabase.from('games').upsert(payload);
+          error = res2.error;
+        }
+        if (error) {
+          console.error("Direct Supabase game upsert error:", error);
+        }
+      } catch (err) {
+        console.error("Direct Supabase game upsert failed:", err);
       }
-      if (error) {
-        console.error("Direct Supabase game upsert error:", error);
-      }
-    } catch (err) {
-      console.error("Direct Supabase game upsert failed:", err);
     }
 
     // Sync to API
@@ -663,15 +689,17 @@ class LocalDB {
     
     // Background revalidation
     (async () => {
-      try {
-        const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
-        if (!error && data && data.data) {
-          const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-          this.setStorageItem('lt_settings', parsed);
-          return;
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
+          if (!error && data && data.data) {
+            const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+            this.setStorageItem('lt_settings', parsed);
+            return;
+          }
+        } catch (e) {
+          // background error handled silently
         }
-      } catch (e) {
-        // background error handled silently
       }
 
       try {
@@ -724,16 +752,18 @@ class LocalDB {
     this.setStorageItem('lt_settings', settings);
 
     // Direct Supabase upsert ALWAYS
-    try {
-      const { error } = await supabase.from("settings").upsert({
-        id: "global",
-        data: settings
-      });
-      if (error) {
-        console.warn("Direct Supabase settings upsert note (syncing via API instead):", error.message || error);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from("settings").upsert({
+          id: "global",
+          data: settings
+        });
+        if (error) {
+          console.warn("Direct Supabase settings upsert note (syncing via API instead):", error.message || error);
+        }
+      } catch (e) {
+        console.warn("Could not sync settings to Supabase client:", e);
       }
-    } catch (e) {
-      console.warn("Could not sync settings to Supabase client:", e);
     }
 
     // Sync to API
@@ -750,14 +780,16 @@ class LocalDB {
 
   // Notifications
   async getNotifications(): Promise<Notification[]> {
-    try {
-      const { data, error } = await supabase.from('notifications').select('*');
-      if (!error && Array.isArray(data)) {
-        this.setStorageItem('lt_notifications', data);
-        return data;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('notifications').select('*');
+        if (!error && Array.isArray(data)) {
+          this.setStorageItem('lt_notifications', data);
+          return data;
+        }
+      } catch (e) {
+        console.warn("Could not fetch notifications from direct Supabase:", e);
       }
-    } catch (e) {
-      console.warn("Could not fetch notifications from direct Supabase:", e);
     }
 
     try {
@@ -788,10 +820,12 @@ class LocalDB {
     this.setStorageItem('lt_notifications', notifications);
 
     // Direct Supabase insert ALWAYS
-    try {
-      await supabase.from('notifications').upsert(newNotification);
-    } catch (err) {
-      console.warn("Direct Supabase notification insert error:", err);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('notifications').upsert(newNotification);
+      } catch (err) {
+        console.warn("Direct Supabase notification insert error:", err);
+      }
     }
 
     // Sync to API
@@ -815,10 +849,12 @@ class LocalDB {
     this.setStorageItem('lt_notifications', filtered);
 
     // Direct Supabase delete ALWAYS
-    try {
-      await supabase.from('notifications').delete().eq('id', id);
-    } catch (err) {
-      console.warn("Direct Supabase notification delete error:", err);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('notifications').delete().eq('id', id);
+      } catch (err) {
+        console.warn("Direct Supabase notification delete error:", err);
+      }
     }
 
     // Sync to API
@@ -833,14 +869,16 @@ class LocalDB {
 
   // Promotions
   async getPromotions(): Promise<Promotion[]> {
-    try {
-      const { data, error } = await supabase.from('promotions').select('*');
-      if (!error && Array.isArray(data)) {
-        this.setStorageItem('lt_promotions', data);
-        return data;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('promotions').select('*');
+        if (!error && Array.isArray(data)) {
+          this.setStorageItem('lt_promotions', data);
+          return data;
+        }
+      } catch (e) {
+        console.warn("Could not fetch promotions from direct Supabase:", e);
       }
-    } catch (e) {
-      console.warn("Could not fetch promotions from direct Supabase:", e);
     }
 
     try {
@@ -871,10 +909,12 @@ class LocalDB {
     this.setStorageItem('lt_promotions', promotions);
 
     // Direct Supabase insert ALWAYS
-    try {
-      await supabase.from('promotions').upsert(newPromotion);
-    } catch (err) {
-      console.warn("Direct Supabase promotion insert error:", err);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('promotions').upsert(newPromotion);
+      } catch (err) {
+        console.warn("Direct Supabase promotion insert error:", err);
+      }
     }
 
     // Sync to API
@@ -898,10 +938,12 @@ class LocalDB {
     this.setStorageItem('lt_promotions', filtered);
 
     // Direct Supabase delete ALWAYS
-    try {
-      await supabase.from('promotions').delete().eq('id', id);
-    } catch (err) {
-      console.warn("Direct Supabase promotion delete error:", err);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('promotions').delete().eq('id', id);
+      } catch (err) {
+        console.warn("Direct Supabase promotion delete error:", err);
+      }
     }
 
     // Sync to API
@@ -916,14 +958,16 @@ class LocalDB {
 
   // Banners
   async getBanners(): Promise<Banner[]> {
-    try {
-      const { data, error } = await supabase.from('banners').select('*');
-      if (!error && Array.isArray(data)) {
-        this.setStorageItem('lt_banners', data);
-        return data;
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('banners').select('*');
+        if (!error && Array.isArray(data)) {
+          this.setStorageItem('lt_banners', data);
+          return data;
+        }
+      } catch (e) {
+        console.warn("Could not fetch banners from direct Supabase:", e);
       }
-    } catch (e) {
-      console.warn("Could not fetch banners from direct Supabase:", e);
     }
 
     try {
@@ -954,10 +998,12 @@ class LocalDB {
     this.setStorageItem('lt_banners', banners);
 
     // Direct Supabase insert ALWAYS
-    try {
-      await supabase.from('banners').upsert(newBanner);
-    } catch (err) {
-      console.warn("Direct Supabase banner insert error:", err);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('banners').upsert(newBanner);
+      } catch (err) {
+        console.warn("Direct Supabase banner insert error:", err);
+      }
     }
 
     // Sync to API
@@ -981,10 +1027,12 @@ class LocalDB {
     this.setStorageItem('lt_banners', filtered);
 
     // Direct Supabase delete ALWAYS
-    try {
-      await supabase.from('banners').delete().eq('id', id);
-    } catch (err) {
-      console.warn("Direct Supabase banner delete error:", err);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('banners').delete().eq('id', id);
+      } catch (err) {
+        console.warn("Direct Supabase banner delete error:", err);
+      }
     }
 
     // Sync to API
@@ -1009,7 +1057,7 @@ class LocalDB {
         email: 'admin@ltjogos.com',
         password: 'admin',
         role: 'admin',
-        balance: 100,
+        balance: 0,
         earnings: 0,
         createdAt: new Date().toISOString(),
         dailyPrizeTotal: 0,
@@ -1021,12 +1069,6 @@ class LocalDB {
         level: 1,
         betVolume: 0,
       });
-    } else {
-      // Force admin balance to 100 as requested
-      if (adminUser.balance !== 100) {
-        adminUser.balance = 100;
-        await this.updateUser(adminUser);
-      }
     }
 
     // Initialize the specific admin with phone 21982331392 and password megabell
@@ -1040,7 +1082,7 @@ class LocalDB {
         phone: '21982331392',
         password: 'megabell',
         role: 'admin',
-        balance: 999999,
+        balance: 0,
         earnings: 0,
         createdAt: new Date().toISOString(),
         dailyPrizeTotal: 0,
@@ -1050,7 +1092,7 @@ class LocalDB {
         referralLink: `https://ltjogos.vercel.app/register?ref=admin-phone-21982331392`,
         withdrawalsCount: 0,
         level: 5,
-        betVolume: 100000,
+        betVolume: 0,
       });
     } else {
       // Ensure role, password, and email are correct
@@ -1102,6 +1144,65 @@ class LocalDB {
         }
       }
       this.setStorageItem('lt_settings', settings);
+    }
+  }
+
+  async resetFinancialData(): Promise<void> {
+    // 1. Clear local memory and localStorage transactions
+    this.setStorageItem('lt_transactions', []);
+
+    // 2. Reset user balances and earnings to zero, keeping accounts intact
+    const currentUsers = this.getStorageItem<User[]>('lt_users', []);
+    const updatedUsers = currentUsers.map(u => ({
+      ...u,
+      balance: 0,
+      earnings: 0,
+      dailyPrizeTotal: 0,
+      withdrawalsCount: 0,
+      betVolume: 0
+    }));
+    this.setStorageItem('lt_users', updatedUsers);
+
+    // 3. Reset settings platformDailyPrizeTotal
+    const settings = this.getStorageItem<SystemSettings | null>('lt_settings', null);
+    if (settings) {
+      settings.platformDailyPrizeTotal = 0;
+      this.setStorageItem('lt_settings', settings);
+    }
+
+    // 4. Update Supabase transactions and users
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('transactions').delete().neq('id', 'none');
+      } catch (e) {
+        console.warn("Direct Supabase clear transactions error:", e);
+      }
+
+      try {
+        const { data: dbUsers } = await supabase.from('users').select('id');
+        if (dbUsers && dbUsers.length > 0) {
+          for (const u of dbUsers) {
+            await supabase.from('users').update({
+              balance: 0,
+              earnings: 0,
+              dailyPrizeTotal: 0,
+              withdrawalsCount: 0
+            }).eq('id', u.id);
+          }
+        }
+      } catch (e) {
+        console.warn("Direct Supabase reset users error:", e);
+      }
+    }
+
+    // 5. Call backend API endpoint to ensure server and database are in sync
+    try {
+      await fetch('/api/admin/reset-financial-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (e) {
+      console.warn("API reset-financial-data error:", e);
     }
   }
 }

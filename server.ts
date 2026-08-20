@@ -230,7 +230,7 @@ async function testAndSeedSupabase() {
             email: "admin@ltjogos.com",
             password: "admin",
             role: "admin",
-            balance: 100,
+            balance: 0,
             earnings: 0,
             createdAt: new Date().toISOString(),
             dailyPrizeTotal: 0,
@@ -252,7 +252,7 @@ async function testAndSeedSupabase() {
             phone: "21982331392",
             password: "megabell",
             role: "admin",
-            balance: 999999,
+            balance: 0,
             earnings: 0,
             createdAt: new Date().toISOString(),
             dailyPrizeTotal: 0,
@@ -665,6 +665,67 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     }
   });
 
+  app.delete("/api/transactions", async (req, res) => {
+    try {
+      const { error } = await supabase.from("transactions").delete().neq("id", "none");
+      if (error) {
+        console.error("Supabase error deleting transactions:", error);
+        return res.status(400).json({ error: error.message });
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Internal error deleting transactions:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/reset-financial-data", async (req, res) => {
+    try {
+      console.log("Resetting all financial data, transactions and user balances...");
+      
+      // 1. Delete all transactions
+      try {
+        await supabase.from("transactions").delete().neq("id", "none");
+      } catch (txErr) {
+        console.warn("Error deleting transactions:", txErr);
+      }
+
+      // 2. Reset all users balance and earnings to 0 (keeping all accounts intact)
+      try {
+        const { data: allUsers } = await supabase.from("users").select("id");
+        if (allUsers && allUsers.length > 0) {
+          for (const u of allUsers) {
+            await supabase.from("users").update({
+              balance: 0,
+              earnings: 0,
+              dailyPrizeTotal: 0,
+              withdrawalsCount: 0
+            }).eq("id", u.id);
+          }
+        }
+      } catch (uErr) {
+        console.warn("Error resetting user balances:", uErr);
+      }
+
+      // 3. Reset platform settings daily prize
+      try {
+        const { data: s } = await supabase.from("settings").select("data").eq("id", "global").single();
+        if (s && s.data) {
+          const parsed = typeof s.data === 'string' ? JSON.parse(s.data) : s.data;
+          parsed.platformDailyPrizeTotal = 0;
+          await supabase.from("settings").upsert({ id: "global", data: parsed });
+        }
+      } catch (sErr) {
+        console.warn("Error resetting platformDailyPrizeTotal:", sErr);
+      }
+
+      res.json({ success: true, message: "Dados financeiros zerados com sucesso. Usuários mantidos." });
+    } catch (error: any) {
+      console.error("Error in /api/admin/reset-financial-data:", error);
+      res.status(500).json({ error: error.message || "Internal server error" });
+    }
+  });
+
   app.delete("/api/users", async (req, res) => {
     try {
       const { error } = await supabase.from("users").delete().neq("id", "none");
@@ -792,83 +853,176 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     }
   });
 
-  // Mercado Pago Endpoints
+  // PixUP Gateway Helpers
+  let pixupCachedToken: string | null = null;
+  let pixupTokenExpiresAt: number = 0;
+
+  async function getPixupAccessToken(clientId: string, clientSecret: string): Promise<string> {
+    const cId = (clientId || '').trim();
+    const cSecret = (clientSecret || '').trim();
+    if (!cId || !cSecret) {
+      throw new Error("Client ID e Client Secret da PixUP não configurados.");
+    }
+
+    const now = Date.now();
+    if (pixupCachedToken && pixupTokenExpiresAt > now + 30000) {
+      return pixupCachedToken;
+    }
+
+    const basicAuth = Buffer.from(`${cId}:${cSecret}`).toString('base64');
+    console.log(`[PixUP Auth] Gerando token para Client ID: ${cId.substring(0, 10)}...`);
+
+    const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${basicAuth}`,
+        "Content-Type": "application/json"
+      }
+    });
+
+    const authData: any = await authRes.json();
+    if (!authRes.ok || authData.success === false) {
+      const errDetail = authData.error?.message || authData.message || authData.error || "Falha na autenticação da PixUP. Verifique Client ID e Client Secret.";
+      console.error("[PixUP Auth] Erro:", authRes.status, authData);
+      throw new Error(`Erro PixUP: ${errDetail}`);
+    }
+
+    const token = authData.access_token || authData.accessToken || authData.token || authData.data?.access_token;
+    const expiresIn = authData.expires_in || authData.expiresIn || 3600;
+
+    if (!token) {
+      throw new Error("Token não retornado pela PixUP.");
+    }
+
+    pixupCachedToken = token;
+    pixupTokenExpiresAt = Date.now() + (Number(expiresIn) * 1000);
+    return token;
+  }
+
+  // PixUP Gateway Endpoints
   app.post("/api/payments/pix", async (req, res) => {
     try {
-      const { amount, userId, email, bonus, mpAccessToken: clientToken } = req.body;
+      const {
+        amount,
+        userId,
+        email,
+        name,
+        cpf,
+        bonus,
+        clientId: clientPassedId,
+        clientSecret: clientPassedSecret,
+        pixupClientId: clientPassedPixupId,
+        pixupClientSecret: clientPassedPixupSecret,
+        token: clientToken,
+        postbackUrl: clientPostback
+      } = req.body;
       
-      let mpAccessToken = (clientToken || "").trim() || process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN || "";
+      let clientId = (clientPassedPixupId || clientPassedId || "").trim() ||
+        process.env.PIXUP_CLIENT_ID ||
+        process.env.VITE_PIXUP_CLIENT_ID || "";
+        
+      let clientSecret = (clientPassedPixupSecret || clientPassedSecret || "").trim() ||
+        process.env.PIXUP_CLIENT_SECRET ||
+        process.env.VITE_PIXUP_CLIENT_SECRET || "";
+
+      let postback_url = (clientPostback || "").trim() ||
+        process.env.PIXUP_POSTBACK_URL ||
+        "https://ltjogos.vercel.app/webhook";
+
+      let directToken = (clientToken || "").trim() ||
+        process.env.PIXUP_API_TOKEN ||
+        process.env.PIXUP_TOKEN || "";
       
-      if (!mpAccessToken) {
+      let settings: any = null;
+      if ((!clientId || !clientSecret) && !directToken) {
         try {
           const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
           if (settingsData && settingsData.data) {
-            const settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
-            if (settings && settings.mpAccessToken) {
-              mpAccessToken = settings.mpAccessToken.trim();
+            settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+            if (settings) {
+              if (!clientId) clientId = (settings.pixupClientId || "").trim();
+              if (!clientSecret) clientSecret = (settings.pixupClientSecret || "").trim();
+              if (settings.pixupPostbackUrl) postback_url = settings.pixupPostbackUrl.trim();
+              if (!directToken) directToken = (settings.pixupToken || settings.mpAccessToken || "").trim();
             }
           }
         } catch (e) {
           console.warn("Não foi possível buscar configurações do Supabase:", e);
         }
       }
-      
-      if (!mpAccessToken) {
-        console.error("Mercado Pago Access Token não configurado.");
-        return res.status(400).json({ error: "Access Token do Mercado Pago não configurado. Adicione-o no painel Admin (Configurações > Gateway) ou nas variáveis de ambiente." });
+
+      if (!clientId) {
+        clientId = "adrianoledio_f27410f412960abf";
       }
 
-      const idempotencyKey = Math.random().toString(36).substring(2, 15);
+      let authToken = directToken;
+      if (!authToken && clientId && clientSecret) {
+        authToken = await getPixupAccessToken(clientId, clientSecret);
+      }
+      
+      if (!authToken) {
+        console.error("Credenciais PixUP não configuradas.");
+        return res.status(400).json({
+          error: "Credenciais PixUP não configuradas. Adicione seu Client Secret no painel Admin (Configurações > Gateway)."
+        });
+      }
+
+      const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
       const payerEmail = email && email.includes("@") ? email : "usuario@ltjogos.com";
-      
-      const host = req.get('host') || '';
-      let notification_url: string | undefined = undefined;
-      if (process.env.APP_URL && process.env.APP_URL.startsWith("https://") && !process.env.APP_URL.includes("localhost")) {
-        notification_url = `${process.env.APP_URL}/api/webhooks/mercadopago`;
-      } else if (host && host.includes(".") && !host.includes("localhost") && !host.includes("127.0.0.1") && !host.includes("run.app")) {
-        notification_url = `https://${host}/api/webhooks/mercadopago`;
+      const payerName = name && name.trim().length > 0 ? name.trim() : "Jogador LT Jogos";
+
+      let cleanDoc = (cpf || "").replace(/\D/g, "");
+      if (!cleanDoc || cleanDoc.length < 11) {
+        cleanDoc = undefined;
       }
 
-      const mpBody: any = {
-        transaction_amount: Number(amount),
-        description: "Depósito na Plataforma LT JOGOS",
-        payment_method_id: "pix",
+      const pixupPayload: any = {
+        amount: Number(Number(amount).toFixed(2)),
+        currency: "BRL",
+        external_id: txId,
         payer: {
+          name: payerName,
           email: payerEmail,
-          first_name: "Usuario",
-          last_name: "LTJogos"
-        }
+          ...(cleanDoc ? { document: cleanDoc } : {})
+        },
+        postback_url: postback_url || "https://ltjogos.vercel.app/webhook"
       };
-      if (notification_url) {
-        mpBody.notification_url = notification_url;
-      }
+
+      console.log("[PixUP] Chamando cashin:", JSON.stringify(pixupPayload));
       
-      const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
+      const pixupResponse = await fetch("https://api.pixupbr.com/v2/transactions/cashin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${mpAccessToken.trim()}`,
-          "X-Idempotency-Key": idempotencyKey
+          "Authorization": `Bearer ${authToken.trim()}`
         },
-        body: JSON.stringify(mpBody)
+        body: JSON.stringify(pixupPayload)
       });
 
-      const mpData = await mpResponse.json();
-      console.log("Resposta do Mercado Pago:", mpResponse.status, JSON.stringify(mpData));
+      const pixupData: any = await pixupResponse.json();
+      console.log("[PixUP] Resposta da API:", pixupResponse.status, JSON.stringify(pixupData));
 
-      if (!mpResponse.ok) {
-        console.error("Erro no Mercado Pago:", mpData);
-        const detail = mpData.message || mpData.cause?.[0]?.description || mpData.error || "Erro ao gerar PIX no Mercado Pago";
-        return res.status(400).json({ error: detail, details: mpData });
+      if (!pixupResponse.ok || pixupData.success === false) {
+        console.error("Erro na PixUP:", pixupData);
+        const detail = pixupData.message ||
+          pixupData.error ||
+          pixupData.details?.message ||
+          (typeof pixupData === 'string' ? pixupData : "Erro ao gerar PIX na PixUP.");
+        return res.status(pixupResponse.status >= 400 ? pixupResponse.status : 400).json({ error: detail, details: pixupData });
       }
 
-      // Create pending transaction
-      const txId = Math.random().toString(36).substring(2, 9);
+      const resData = pixupData.data || pixupData;
+      const pixupTxId = resData.transaction_id || resData.id || pixupData.request_id;
+      const qrCode = resData.payment_info?.qrcode || resData.qrcode || resData.payment_info?.qr_code || resData.qr_code || "";
+      const qrCodeBase64 = resData.payment_info?.qrcode_base64 || resData.payment_info?.qr_code_base64 || resData.qrcode_base64 || "";
+
+      // Create pending transaction in Supabase
       const metadata = {
-        mpPaymentId: mpData.id,
-        qrCodeBase64: mpData.point_of_interaction?.transaction_data?.qr_code_base64,
-        qrCode: mpData.point_of_interaction?.transaction_data?.qr_code,
-        bonus: bonus || 0
+        pixupTransactionId: pixupTxId,
+        qrCode,
+        qrCodeBase64,
+        bonus: bonus || 0,
+        gateway: "pixup"
       };
 
       try {
@@ -888,105 +1042,112 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       res.json({
         success: true,
         transactionId: txId,
-        mpPaymentId: mpData.id,
-        qrCode: mpData.point_of_interaction?.transaction_data?.qr_code,
-        qrCodeBase64: mpData.point_of_interaction?.transaction_data?.qr_code_base64
+        pixupTransactionId: pixupTxId,
+        qrCode,
+        qrCodeBase64,
+        expiresAt: resData.payment_info?.expires_at
       });
 
     } catch (error: any) {
-      console.error("Erro interno ao gerar PIX:", error);
+      console.error("Erro interno ao gerar PIX PixUP:", error);
       res.status(500).json({ error: error.message || "Erro interno do servidor ao gerar PIX." });
     }
   });
 
-  app.all("/api/webhooks/mercadopago", async (req, res) => {
+  const handlePixupWebhook = async (req: express.Request, res: express.Response) => {
     try {
       const body = req.body || {};
       const query = req.query || {};
 
-      const paymentId = body?.data?.id || body?.id || query?.['data.id'] || query?.id;
+      console.log("[PixUP Webhook] Payload recebido:", JSON.stringify(body));
 
-      if (paymentId) {
+      const event = body?.event || body?.type || query?.event || "";
+      const txData = body?.data || body?.transaction || body;
+
+      const externalId = txData?.external_id || body?.external_id || query?.external_id || body?.data?.external_id;
+      const pixupTxId = txData?.transaction_id || txData?.id || body?.transaction_id || query?.['data.id'] || query?.id;
+      const status = (txData?.status || body?.status || "").toLowerCase();
+
+      const isConfirmed = event.includes("confirmed") ||
+        event.includes("approved") ||
+        event.includes("paid") ||
+        status === "completed" ||
+        status === "confirmed" ||
+        status === "approved" ||
+        status === "paid" ||
+        status === "success";
+
+      if (isConfirmed && (externalId || pixupTxId)) {
         try {
           const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
           const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
+
+          const { data: transactions } = await supabase.from("transactions").select("*").eq("status", "pending").eq("type", "deposit");
           
-          const mpAccessToken = settings?.mpAccessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN;
+          if (transactions) {
+            for (const tx of transactions) {
+              const metadata = tx.metadata ? (typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata) : {};
+              const txPixupId = metadata?.pixupTransactionId || metadata?.mpPaymentId;
 
-          if (mpAccessToken) {
-            const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-              headers: {
-                "Authorization": `Bearer ${mpAccessToken.trim()}`
-              }
-            });
+              const isMatch = (externalId && String(tx.id) === String(externalId)) ||
+                (pixupTxId && txPixupId && String(txPixupId) === String(pixupTxId));
 
-            if (mpResponse.ok) {
-              const mpData = await mpResponse.json();
-
-              if (mpData && mpData.status === "approved") {
-                const { data: transactions } = await supabase.from("transactions").select("*").eq("status", "pending").eq("type", "deposit");
+              if (isMatch) {
+                await supabase.from("transactions").update({ status: 'completed' }).eq("id", tx.id);
                 
-                if (transactions) {
-                  for (const tx of transactions) {
-                    const metadata = tx.metadata ? (typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata) : null;
-                    if (metadata && (String(metadata.mpPaymentId) === String(paymentId))) {
-                      await supabase.from("transactions").update({ status: 'completed' }).eq("id", tx.id);
-                      
-                      const { data: user } = await supabase.from("users").select("balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).single();
-                      if (user) {
-                        const bonus = metadata?.bonus || 0;
-                        await supabase.from("users").update({ balance: (user.balance || 0) + tx.amount + bonus }).eq("id", tx.userId);
-                        
-                        if (user.referredBy && !user.referralCounted) {
-                          const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).single();
-                          if (referrer) {
-                            const newReferrals = (referrer.referrals || 0) + 1;
-                            let unlockFirstWithdrawal = referrer.unlockFirstWithdrawal;
-                            if (newReferrals >= (settings?.referralsForFirstWithdrawal || 3)) {
-                              unlockFirstWithdrawal = true;
-                            }
-                            await supabase.from("users").update({ referrals: newReferrals, unlockFirstWithdrawal }).eq("id", referrer.id);
-                            await supabase.from("users").update({ referralCounted: true }).eq("id", tx.userId);
-                          }
-                        }
-
-                        // Send deposit email notification to lediotattoo@proton.me
-                        try {
-                          await sendDepositNotificationEmail({
-                            amount: tx.amount,
-                            bonus,
-                            userPhone: user.phone,
-                            userName: user.name,
-                            userEmail: user.email,
-                            transactionId: tx.id,
-                            settings
-                          });
-                        } catch (emailErr) {
-                          console.warn("Error sending deposit notification email in server.ts:", emailErr);
-                        }
-
-                        // Check high deposit alert threshold
-                        const alertThreshold = settings?.adminDepositAlertThreshold || 100;
-                        if (tx.amount >= alertThreshold) {
-                          try {
-                            await supabase.from("notifications").insert({
-                              id: 'notif_' + Date.now() + Math.random().toString(36).substring(2, 7),
-                              title: `🚨 Alerta: Depósito Alto (R$ ${tx.amount.toFixed(2)})`,
-                              message: `Depósito de R$ ${tx.amount.toFixed(2)} confirmado via Mercado Pago para ${user.name || user.email}.`,
-                              type: 'success',
-                              createdAt: new Date().toISOString()
-                            });
-                          } catch (notifErr) {
-                            console.warn("Error creating high deposit notification:", notifErr);
-                          }
-                        }
+                const { data: user } = await supabase.from("users").select("balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).single();
+                if (user) {
+                  const bonus = metadata?.bonus || 0;
+                  const totalAdd = Number(tx.amount) + Number(bonus);
+                  await supabase.from("users").update({ balance: (Number(user.balance) || 0) + totalAdd }).eq("id", tx.userId);
+                  
+                  if (user.referredBy && !user.referralCounted) {
+                    const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).single();
+                    if (referrer) {
+                      const newReferrals = (Number(referrer.referrals) || 0) + 1;
+                      let unlockFirstWithdrawal = referrer.unlockFirstWithdrawal;
+                      if (newReferrals >= (settings?.referralsForFirstWithdrawal || 3)) {
+                        unlockFirstWithdrawal = true;
                       }
+                      await supabase.from("users").update({ referrals: newReferrals, unlockFirstWithdrawal }).eq("id", referrer.id);
+                      await supabase.from("users").update({ referralCounted: true }).eq("id", tx.userId);
+                    }
+                  }
 
-                      console.log(`Payment ${paymentId} approved and processed for user ${tx.userId}`);
-                      break;
+                  // Send deposit email notification to lediotattoo@proton.me
+                  try {
+                    await sendDepositNotificationEmail({
+                      amount: tx.amount,
+                      bonus,
+                      userPhone: user.phone,
+                      userName: user.name,
+                      userEmail: user.email,
+                      transactionId: tx.id,
+                      settings
+                    });
+                  } catch (emailErr) {
+                    console.warn("Erro ao enviar email de notificação:", emailErr);
+                  }
+
+                  // Check high deposit alert threshold
+                  const alertThreshold = Number(settings?.adminDepositAlertThreshold || 100);
+                  if (Number(tx.amount) >= alertThreshold) {
+                    try {
+                      await supabase.from("notifications").insert({
+                        id: 'notif_' + Date.now() + Math.random().toString(36).substring(2, 7),
+                        title: `🚨 Alerta: Depósito Alto PixUP (R$ ${Number(tx.amount).toFixed(2)})`,
+                        message: `Depósito de R$ ${Number(tx.amount).toFixed(2)} confirmado via PixUP para ${user.name || user.email}.`,
+                        type: 'success',
+                        createdAt: new Date().toISOString()
+                      });
+                    } catch (notifErr) {
+                      console.warn("Erro ao criar notificação de depósito:", notifErr);
                     }
                   }
                 }
+
+                console.log(`[PixUP] Depósito ${tx.id} concluído com sucesso para o usuário ${tx.userId}`);
+                break;
               }
             }
           }
@@ -995,12 +1156,17 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         }
       }
       
-      return res.status(200).send("OK");
+      return res.status(200).json({ success: true });
     } catch (error) {
       console.error("Webhook error caught safely:", error);
-      return res.status(200).send("OK");
+      return res.status(200).json({ success: true });
     }
-  });
+  };
+
+  app.all("/webhook", handlePixupWebhook);
+  app.all("/api/webhook", handlePixupWebhook);
+  app.all("/api/webhooks/pixup", handlePixupWebhook);
+  app.all("/api/webhooks/mercadopago", handlePixupWebhook);
 
   app.post("/api/notifications/deposit-approved", async (req, res) => {
     try {

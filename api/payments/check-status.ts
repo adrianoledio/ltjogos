@@ -60,13 +60,31 @@ export async function syncAllPendingDeposits() {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // 1. Get settings for mpAccessToken
+  // 1. Get settings for pixup credentials
   const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
   const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
-  const mpAccessToken = settings?.mpAccessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.VITE_MERCADO_PAGO_ACCESS_TOKEN;
+  
+  let pixupToken = settings?.pixupToken || process.env.PIXUP_API_TOKEN || process.env.PIXUP_TOKEN || process.env.VITE_PIXUP_TOKEN;
+  const clientId = settings?.pixupClientId || process.env.PIXUP_CLIENT_ID || "adrianoledio_f27410f412960abf";
+  const clientSecret = settings?.pixupClientSecret || process.env.PIXUP_CLIENT_SECRET;
 
-  if (!mpAccessToken) {
-    return { approvedCount: 0, error: "mpAccessToken missing" };
+  if (!pixupToken && clientId && clientSecret) {
+    try {
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${basicAuth}`,
+          "Content-Type": "application/json"
+        }
+      });
+      if (authRes.ok) {
+        const authData = await authRes.json();
+        pixupToken = authData.access_token || authData.accessToken || authData.token || authData.data?.access_token;
+      }
+    } catch (e) {
+      console.warn("PixUP OAuth token generation failed in check-status:", e);
+    }
   }
 
   // 2. Get all pending deposit transactions
@@ -75,70 +93,31 @@ export async function syncAllPendingDeposits() {
     return { approvedCount: 0, message: "No pending deposits" };
   }
 
-  // 3. Search recent approved payments in Mercado Pago
-  let mpApprovedPayments: any[] = [];
-  try {
-    const mpSearchRes = await fetch("https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&limit=50", {
-      headers: { "Authorization": `Bearer ${mpAccessToken.trim()}` }
-    });
-    if (mpSearchRes.ok) {
-      const searchData = await mpSearchRes.json();
-      const results = searchData.results || [];
-      mpApprovedPayments = results.filter((p: any) => p.status === "approved");
-    }
-  } catch (err) {
-    console.warn("Error fetching MP recent payments search:", err);
-  }
-
   let approvedCount = 0;
 
-  for (const tx of pendingTxs) {
-    const metadata = tx.metadata ? (typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata) : {};
-    const mpPaymentId = metadata?.mpPaymentId;
+  if (pixupToken) {
+    for (const tx of pendingTxs) {
+      const metadata = tx.metadata ? (typeof tx.metadata === 'string' ? JSON.parse(tx.metadata) : tx.metadata) : {};
+      const pixupTxId = metadata?.pixupTransactionId || metadata?.mpPaymentId;
 
-    let isApproved = false;
-
-    // Check direct payment ID first if we have it
-    if (mpPaymentId) {
-      try {
-        const directRes = await fetch(`https://api.mercadopago.com/v1/payments/${mpPaymentId}`, {
-          headers: { "Authorization": `Bearer ${mpAccessToken.trim()}` }
-        });
-        if (directRes.ok) {
-          const directData = await directRes.json();
-          if (directData && directData.status === "approved") {
-            isApproved = true;
+      if (pixupTxId) {
+        try {
+          const res = await fetch(`https://api.pixupbr.com/v2/transactions/${pixupTxId}`, {
+            headers: { "Authorization": `Bearer ${pixupToken.trim()}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const txInfo = data?.data || data;
+            const status = (txInfo?.status || "").toLowerCase();
+            if (status === "completed" || status === "confirmed" || status === "paid" || status === "approved") {
+              const ok = await approvePendingTx(supabase, tx, settings);
+              if (ok) approvedCount++;
+            }
           }
+        } catch (e) {
+          console.warn(`PixUP status query failed for ${pixupTxId}:`, e);
         }
-      } catch (e) {
-        console.warn(`Direct MP fetch failed for payment ${mpPaymentId}:`, e);
       }
-    }
-
-    // If not approved by direct ID, check in recent search results by ID or Amount
-    if (!isApproved && mpApprovedPayments.length > 0) {
-      const matchingMp = mpApprovedPayments.find((mp: any) => {
-        if (mpPaymentId && String(mp.id) === String(mpPaymentId)) return true;
-        // Match by amount if created within same timeframe
-        if (Number(mp.transaction_amount) === Number(tx.amount)) {
-          const txTime = new Date(tx.date || tx.createdAt).getTime();
-          const mpTime = new Date(mp.date_created || mp.date_approved).getTime();
-          // Within 2 hours
-          if (Math.abs(txTime - mpTime) < 2 * 60 * 60 * 1000) {
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (matchingMp) {
-        isApproved = true;
-      }
-    }
-
-    if (isApproved) {
-      const ok = await approvePendingTx(supabase, tx, settings);
-      if (ok) approvedCount++;
     }
   }
 
@@ -146,7 +125,7 @@ export async function syncAllPendingDeposits() {
 }
 
 export async function verifyAndApprovePayment(paymentId: string | number, txId?: string, targetUserId?: string) {
-  // Always trigger a sync of all pending deposits
+  // Trigger sync of pending deposits
   await syncAllPendingDeposits().catch(e => console.warn("syncAllPendingDeposits error:", e));
 
   const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
