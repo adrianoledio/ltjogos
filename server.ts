@@ -19,8 +19,11 @@ import {
 // Supabase Configuration
 const { url: validServerUrl, key: validServerKey } = getValidSupabaseCredentials();
 
-console.log("Supabase initialized with URL:", validServerUrl);
-const supabase = createClient(validServerUrl, validServerKey);
+console.log("Supabase initialized with URL:", validServerUrl || "offline placeholder");
+const supabase = createClient(
+  validServerUrl || "https://placeholder.supabase.co",
+  validServerKey || "placeholder"
+);
 
 // Test and Seed Supabase connection on startup
 async function testAndSeedSupabase() {

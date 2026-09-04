@@ -1,3 +1,4 @@
+
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const calaveraInkCover = '/images/calavera_ink_cover_1784495373476.jpg';
@@ -327,28 +328,6 @@ class LocalDB {
     // Background revalidation
     (async () => {
       try {
-        if (isSupabaseConfigured) {
-          const { data, error } = await supabase.from('users').select('*');
-          if (!error && Array.isArray(data) && data.length > 0) {
-            const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
-            const formatted = data.map((u: any) => {
-              const localUser = cachedMap.get(u.id);
-              return {
-                ...u,
-                lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined,
-                unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
-                referralCounted: !!u.referralCounted
-              };
-            });
-            this.setStorageItem('lt_users', formatted);
-            return;
-          }
-        }
-      } catch (e) {
-        // silent
-      }
-
-      try {
         const res = await fetch('/api/users');
         if (res.ok) {
           const data = await res.json();
@@ -392,62 +371,6 @@ class LocalDB {
     }
     this.setStorageItem('lt_users', users);
 
-    // Direct Supabase upsert ALWAYS
-    try {
-      const payload: any = {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        password: updatedUser.password,
-        role: updatedUser.role,
-        balance: updatedUser.balance,
-        earnings: updatedUser.earnings,
-        createdAt: updatedUser.createdAt,
-        dailyPrizeTotal: updatedUser.dailyPrizeTotal,
-        lastPrizeDate: updatedUser.lastPrizeDate,
-        lastLoginBonusDate: updatedUser.lastLoginBonusDate || null,
-        referrals: updatedUser.referrals || 0,
-        unlockFirstWithdrawal: updatedUser.unlockFirstWithdrawal ? true : false,
-        referralLink: updatedUser.referralLink || '',
-        withdrawalsCount: updatedUser.withdrawalsCount || 0,
-        referredBy: updatedUser.referredBy || null,
-        referralCounted: updatedUser.referralCounted ? true : false,
-        phone: updatedUser.phone || null
-      };
-      let error: any = null;
-      if (isSupabaseConfigured) {
-        let res = await supabase.from('users').upsert(payload);
-        error = res.error;
-        if (error && (error.message?.toLowerCase().includes("column") || error.message?.toLowerCase().includes("does not exist") || error.message?.toLowerCase().includes("schema"))) {
-          delete payload.lastLoginBonusDate;
-          delete payload.phone;
-          const res2 = await supabase.from('users').upsert(payload);
-          error = res2.error;
-          if (error && error.message?.toLowerCase().includes("column")) {
-            const minimalPayload = {
-              id: payload.id,
-              name: payload.name,
-              email: payload.email,
-              password: payload.password,
-              role: payload.role,
-              balance: payload.balance,
-              earnings: payload.earnings,
-              createdAt: payload.createdAt,
-              dailyPrizeTotal: payload.dailyPrizeTotal || 0,
-              lastPrizeDate: payload.lastPrizeDate || null
-            };
-            const res3 = await supabase.from('users').upsert(minimalPayload);
-            error = res3.error;
-          }
-        }
-      }
-      if (error) {
-        console.error("Direct Supabase user upsert error:", error);
-      }
-    } catch (subErr) {
-      console.error("Direct Supabase user upsert failed:", subErr);
-    }
-
     // Sync to API in background
     try {
       await fetch('/api/users', {
@@ -465,15 +388,6 @@ class LocalDB {
     const users = this.getStorageItem<User[]>('lt_users', []);
     const filtered = users.filter(u => u.id !== userId);
     this.setStorageItem('lt_users', filtered);
-
-    // Supabase delete
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('users').delete().eq('id', userId);
-      } catch (error) {
-        console.error("Direct Supabase user delete failed:", error);
-      }
-    }
 
     // Sync to API
     try {
@@ -590,19 +504,6 @@ class LocalDB {
 
     // Asynchronous background revalidation so UI never blocks
     (async () => {
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase.from('games').select('*');
-          if (!error && Array.isArray(data) && data.length > 0) {
-            const formatted = data.map(g => ({ ...g, active: !!g.active, featured: !!g.featured }));
-            this.setStorageItem('lt_games', formatted);
-            return;
-          }
-        } catch (e) {
-          // Silent background fallback
-        }
-      }
-
       try {
         const res = await fetch('/api/games');
         if (res.ok) {
@@ -636,37 +537,6 @@ class LocalDB {
     }
     this.setStorageItem('lt_games', games);
 
-    // Direct Supabase upsert ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        const payload: any = {
-          id: updatedGame.id,
-          name: updatedGame.name,
-          active: updatedGame.active ? true : false,
-          minBet: updatedGame.minBet,
-          maxBet: updatedGame.maxBet,
-          rtp: updatedGame.rtp,
-          thumbnail: updatedGame.thumbnail || '',
-          bgPage: updatedGame.bgPage || '',
-          bgContainer: updatedGame.bgContainer || '',
-          bgMusic: updatedGame.bgMusic || '',
-          category: updatedGame.category || 'slots',
-          featured: updatedGame.featured ? true : false,
-        };
-        let { error } = await supabase.from('games').upsert(payload);
-        if (error && error.message?.toLowerCase().includes("featured")) {
-          delete payload.featured;
-          const res2 = await supabase.from('games').upsert(payload);
-          error = res2.error;
-        }
-        if (error) {
-          console.error("Direct Supabase game upsert error:", error);
-        }
-      } catch (err) {
-        console.error("Direct Supabase game upsert failed:", err);
-      }
-    }
-
     // Sync to API
     try {
       await fetch('/api/games', {
@@ -689,19 +559,6 @@ class LocalDB {
     
     // Background revalidation
     (async () => {
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
-          if (!error && data && data.data) {
-            const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-            this.setStorageItem('lt_settings', parsed);
-            return;
-          }
-        } catch (e) {
-          // background error handled silently
-        }
-      }
-
       try {
         const res = await fetch('/api/settings');
         if (res.ok) {
@@ -751,21 +608,6 @@ class LocalDB {
     }
     this.setStorageItem('lt_settings', settings);
 
-    // Direct Supabase upsert ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.from("settings").upsert({
-          id: "global",
-          data: settings
-        });
-        if (error) {
-          console.warn("Direct Supabase settings upsert note (syncing via API instead):", error.message || error);
-        }
-      } catch (e) {
-        console.warn("Could not sync settings to Supabase client:", e);
-      }
-    }
-
     // Sync to API
     try {
       await fetch('/api/settings', {
@@ -780,18 +622,6 @@ class LocalDB {
 
   // Notifications
   async getNotifications(): Promise<Notification[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase.from('notifications').select('*');
-        if (!error && Array.isArray(data)) {
-          this.setStorageItem('lt_notifications', data);
-          return data;
-        }
-      } catch (e) {
-        console.warn("Could not fetch notifications from direct Supabase:", e);
-      }
-    }
-
     try {
       const res = await fetch('/api/notifications');
       if (res.ok) {
@@ -819,15 +649,6 @@ class LocalDB {
     notifications.push(newNotification);
     this.setStorageItem('lt_notifications', notifications);
 
-    // Direct Supabase insert ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('notifications').upsert(newNotification);
-      } catch (err) {
-        console.warn("Direct Supabase notification insert error:", err);
-      }
-    }
-
     // Sync to API
     try {
       await fetch('/api/notifications', {
@@ -848,15 +669,6 @@ class LocalDB {
     const filtered = notifications.filter(n => n.id !== id);
     this.setStorageItem('lt_notifications', filtered);
 
-    // Direct Supabase delete ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('notifications').delete().eq('id', id);
-      } catch (err) {
-        console.warn("Direct Supabase notification delete error:", err);
-      }
-    }
-
     // Sync to API
     try {
       await fetch(`/api/notifications/${id}`, {
@@ -869,18 +681,6 @@ class LocalDB {
 
   // Promotions
   async getPromotions(): Promise<Promotion[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase.from('promotions').select('*');
-        if (!error && Array.isArray(data)) {
-          this.setStorageItem('lt_promotions', data);
-          return data;
-        }
-      } catch (e) {
-        console.warn("Could not fetch promotions from direct Supabase:", e);
-      }
-    }
-
     try {
       const res = await fetch('/api/promotions');
       if (res.ok) {
@@ -908,15 +708,6 @@ class LocalDB {
     promotions.push(newPromotion);
     this.setStorageItem('lt_promotions', promotions);
 
-    // Direct Supabase insert ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('promotions').upsert(newPromotion);
-      } catch (err) {
-        console.warn("Direct Supabase promotion insert error:", err);
-      }
-    }
-
     // Sync to API
     try {
       await fetch('/api/promotions', {
@@ -937,15 +728,6 @@ class LocalDB {
     const filtered = promotions.filter(p => p.id !== id);
     this.setStorageItem('lt_promotions', filtered);
 
-    // Direct Supabase delete ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('promotions').delete().eq('id', id);
-      } catch (err) {
-        console.warn("Direct Supabase promotion delete error:", err);
-      }
-    }
-
     // Sync to API
     try {
       await fetch(`/api/promotions/${id}`, {
@@ -958,18 +740,6 @@ class LocalDB {
 
   // Banners
   async getBanners(): Promise<Banner[]> {
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase.from('banners').select('*');
-        if (!error && Array.isArray(data)) {
-          this.setStorageItem('lt_banners', data);
-          return data;
-        }
-      } catch (e) {
-        console.warn("Could not fetch banners from direct Supabase:", e);
-      }
-    }
-
     try {
       const res = await fetch('/api/banners');
       if (res.ok) {
@@ -997,15 +767,6 @@ class LocalDB {
     banners.push(newBanner);
     this.setStorageItem('lt_banners', banners);
 
-    // Direct Supabase insert ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('banners').upsert(newBanner);
-      } catch (err) {
-        console.warn("Direct Supabase banner insert error:", err);
-      }
-    }
-
     // Sync to API
     try {
       await fetch('/api/banners', {
@@ -1025,15 +786,6 @@ class LocalDB {
     const banners = this.getStorageItem<Banner[]>('lt_banners', []);
     const filtered = banners.filter(b => b.id !== id);
     this.setStorageItem('lt_banners', filtered);
-
-    // Direct Supabase delete ALWAYS
-    if (isSupabaseConfigured) {
-      try {
-        await supabase.from('banners').delete().eq('id', id);
-      } catch (err) {
-        console.warn("Direct Supabase banner delete error:", err);
-      }
-    }
 
     // Sync to API
     try {
