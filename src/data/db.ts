@@ -415,6 +415,11 @@ class LocalDB {
 
     if (isSupabaseConfigured) {
       try {
+        await supabase.from('transactions').delete().eq('userId', userId);
+      } catch (e) {
+        // quiet
+      }
+      try {
         await supabase.from('users').delete().eq('id', userId);
       } catch (e) {
         // quiet
@@ -611,7 +616,7 @@ class LocalDB {
 
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('settings').select('*').eq('id', 'global').single();
+        const { data, error } = await supabase.from('settings').select('*').eq('id', 'global').maybeSingle();
         if (!error && data && data.data) {
           settingsData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
           if (settingsData) {

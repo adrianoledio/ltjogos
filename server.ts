@@ -48,8 +48,8 @@ async function testAndSeedSupabase() {
       console.log("Seeding default data if empty...");
 
       // 1. Seed settings
-      const { data: settingsData, error: settingsError } = await supabase.from("settings").select("id").eq("id", "global").single();
-      if (settingsError && (settingsError.code === "PGRST116" || settingsError.message?.includes("contains 0 rows"))) {
+      const { data: settingsData, error: settingsError } = await supabase.from("settings").select("id").eq("id", "global").maybeSingle();
+      if (!settingsData) {
         console.log("Seeding DEFAULT_SETTINGS to Supabase...");
         const DEFAULT_SETTINGS = {
           siteName: "LT JOGOS",
@@ -287,11 +287,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("users").select("*");
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
-          return res.json([]);
-        }
-        console.error("Supabase error fetching users:", error);
-        return res.status(500).json({ error: error.message });
+        console.log("Supabase info fetching users:", error.message || error);
+        return res.json([]);
       }
       res.json((data || []).map((u: any) => ({
         ...u,
@@ -359,11 +356,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("games").select("*");
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
-          return res.json([]);
-        }
-        console.error("Supabase error fetching games:", error);
-        return res.status(500).json({ error: error.message });
+        console.log("Supabase info fetching games:", error.message || error);
+        return res.json([]);
       }
       res.json((data || []).map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured })));
     } catch (error: any) {
@@ -592,15 +586,10 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.get("/api/settings", async (req, res) => {
     try {
-      const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
+      const { data, error } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
-          return res.json(null);
-        }
-        if (error.code !== 'PGRST116') {
-          console.log("Supabase info fetching settings:", error.message || error);
-          return res.json(null);
-        }
+        console.log("Supabase info fetching settings:", error.message || error);
+        return res.json(null);
       }
       if (data && data.data) {
         res.json(typeof data.data === 'string' ? JSON.parse(data.data) : data.data);
@@ -757,6 +746,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.delete("/api/users/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      // Delete associated transactions first to prevent foreign key constraint violations
+      try {
+        await supabase.from("transactions").delete().eq("userId", id);
+      } catch (e) {
+        // ignore
+      }
       const { error } = await supabase.from("users").delete().eq("id", id);
       if (error) {
         console.log("Supabase delete user status:", error.message || error);
@@ -1260,4 +1255,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     });
   }
 
-  startServer();
+  // Only start standalone server if not running in serverless (e.g. Vercel)
+  if (!process.env.VERCEL) {
+    startServer();
+  }

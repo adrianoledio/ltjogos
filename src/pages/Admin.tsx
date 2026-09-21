@@ -555,14 +555,14 @@ export function Admin() {
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-              <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 min-w-0">
+              <div className={`p-2.5 rounded-xl border min-w-0 ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
                 <h3 className="text-[8px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
                   <TrendingUp size={10} className="text-emerald-500" />
                   Fluxo de Caixa (7 dias)
                 </h3>
-                <div className="h-[150px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[150px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1">
@@ -603,13 +603,13 @@ export function Admin() {
                 </div>
               </div>
 
-              <div className={`p-2.5 rounded-xl border ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+              <div className={`p-2.5 rounded-xl border min-w-0 ${theme === 'dark' ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
                 <h3 className="text-[8px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
                   <BarChart3 size={10} className="text-blue-500" />
                   Volume de Apostas vs Prêmios
                 </h3>
-                <div className="h-[150px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="h-[150px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} />
                       <XAxis 
