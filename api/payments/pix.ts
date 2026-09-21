@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getValidSupabaseCredentials } from "../../src/lib/supabase";
 import { createPixupCashin, getPixupToken } from "../lib/pixup";
 
 export default async function handler(req: any, res: any) {
@@ -38,8 +39,8 @@ export default async function handler(req: any, res: any) {
       process.env.PIXUP_API_TOKEN ||
       process.env.PIXUP_TOKEN || "";
 
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-    const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+    const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
+    
     let supabase: any = null;
 
     if (supabaseUrl && supabaseKey) {

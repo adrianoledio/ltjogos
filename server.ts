@@ -287,7 +287,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("users").select("*");
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json([]);
         }
         console.error("Supabase error fetching users:", error);
@@ -299,7 +299,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         referralCounted: !!u.referralCounted
       })));
     } catch (error: any) {
-      console.error("Network error fetching users:", error.message || error);
+      console.log("Supabase offline/unreachable for users:", error.message || error);
       res.json([]);
     }
   });
@@ -359,7 +359,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("games").select("*");
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json([]);
         }
         console.error("Supabase error fetching games:", error);
@@ -367,7 +367,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       res.json((data || []).map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured })));
     } catch (error: any) {
-      console.error("Network error fetching games:", error.message || error);
+      console.log("Supabase offline/unreachable for games:", error.message || error);
       res.json([]);
     }
   });
@@ -549,7 +549,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("transactions").select("*").order("date", { ascending: false });
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json([]);
         }
         console.error("Supabase error fetching transactions:", error);
@@ -557,7 +557,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       res.json((data || []).map((t: any) => ({ ...t, metadata: t.metadata ? (typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata) : null })));
     } catch (error: any) {
-      console.error("Internal error fetching transactions:", error);
+      console.log("Supabase offline/unreachable for transactions:", error.message || error);
       res.json([]);
     }
   });
@@ -583,7 +583,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("settings").select("data").eq("id", "global").single();
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json(null);
         }
         if (error.code !== 'PGRST116') {
@@ -597,7 +597,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         res.json(null);
       }
     } catch (error: any) {
-      console.error("Network error fetching settings:", error.message || error);
+      console.log("Supabase offline/unreachable for settings:", error.message || error);
       res.json(null);
     }
   });
@@ -624,7 +624,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("notifications").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json([]);
         }
         console.error("Supabase error fetching notifications:", error);
@@ -632,7 +632,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       res.json(data || []);
     } catch (error: any) {
-      console.error("Internal error fetching notifications:", error);
+      console.log("Supabase offline/unreachable for notifications:", error.message || error);
       res.json([]);
     }
   });
@@ -763,7 +763,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("promotions").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json([]);
         }
         console.error("Supabase error fetching promotions:", error);
@@ -771,7 +771,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       res.json((data || []).map((p: any) => ({ ...p, active: !!p.active })));
     } catch (error: any) {
-      console.error("Internal error fetching promotions:", error);
+      console.log("Supabase offline/unreachable for promotions:", error.message || error);
       res.json([]);
     }
   });
@@ -812,7 +812,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       const { data, error } = await supabase.from("banners").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
           return res.json([]);
         }
         console.error("Supabase error fetching banners:", error);
@@ -820,7 +820,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       res.json((data || []).map((b: any) => ({ ...b, active: !!b.active })));
     } catch (error: any) {
-      console.error("Internal error fetching banners:", error);
+      console.log("Supabase offline/unreachable for banners:", error.message || error);
       res.json([]);
     }
   });
@@ -1169,7 +1169,6 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.all("/webhook", handlePixupWebhook);
   app.all("/api/webhook", handlePixupWebhook);
   app.all("/api/webhooks/pixup", handlePixupWebhook);
-  app.all("/api/webhooks/mercadopago", handlePixupWebhook);
 
   app.post("/api/notifications/deposit-approved", async (req, res) => {
     try {

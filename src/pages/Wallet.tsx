@@ -102,7 +102,7 @@ export function Wallet() {
     const checkPayment = async () => {
       if (!user) return;
       try {
-        // 1. Query server status check API (queries Mercado Pago directly if pending)
+        // 1. Query server status check API (queries gateway directly if pending)
         const statusRes = await fetch(`/api/payments/check-status?userId=${user.id}${activeTxId ? `&txId=${activeTxId}` : ''}`);
         if (statusRes.ok) {
           const statusData = await statusRes.json();

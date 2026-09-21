@@ -176,7 +176,7 @@ export function Admin() {
       if (user?.role === 'admin') {
         setIsLoading(true);
         try {
-          // Auto sync with Mercado Pago first
+          // Auto sync payments first
           await fetch('/api/payments/sync').catch(e => console.warn(e));
 
           const [usersData, gamesData, txsData, settingsData, notifsData, promosData, bannersData] = await Promise.all([
@@ -1239,7 +1239,7 @@ export function Admin() {
                 }`}
               >
                 <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-                {isSyncing ? 'Verificando Mercado Pago...' : 'Sincronizar Mercado Pago'}
+                {isSyncing ? 'Verificando PIX...' : 'Sincronizar PIX'}
               </button>
             </div>
             <div className={`rounded-xl border overflow-hidden transition-all ${theme === 'dark' ? 'bg-black/20 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>

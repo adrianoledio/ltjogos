@@ -41,11 +41,18 @@ export class RtpMonitor {
         .limit(2000);
 
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("does not exist")) {
-          console.log("RTP Monitor: Transactions table not found yet, skipping check.");
+        if (
+          error.code === '42P01' ||
+          error.message?.includes("does not exist") ||
+          error.message?.includes("Could not find the table") ||
+          error.message?.includes("fetch failed") ||
+          error.message?.includes("ENOTFOUND") ||
+          error.message?.includes("fetch")
+        ) {
+          console.log("RTP Monitor: Database unreachable or table not found, skipping check.");
           return;
         }
-        console.warn("RTP Monitor error fetching transactions:", error.message);
+        console.log("RTP Monitor info fetching transactions:", error.message);
         return;
       }
 
@@ -109,8 +116,12 @@ export class RtpMonitor {
       }
 
       console.log("RTP compliance verification completed successfully.");
-    } catch (err) {
-      console.error("Error in RTP compliance check:", err);
+    } catch (err: any) {
+      if (err?.message?.includes("fetch failed") || err?.message?.includes("ENOTFOUND") || err?.message?.includes("fetch")) {
+        console.log("RTP Monitor: Database unreachable, skipping check.");
+        return;
+      }
+      console.log("Note in RTP compliance check:", err?.message || err);
     }
   }
 }

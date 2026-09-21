@@ -21,6 +21,19 @@ export function getValidSupabaseCredentials() {
     }
   }
 
+  // Auto-recover if the user accidentally pasted the JWT into VITE_SUPABASE_URL
+  if (url && url.startsWith("eyJ")) {
+    try {
+      const payload = JSON.parse(atob(url.split(".")[1]));
+      if (payload && payload.ref) {
+        url = `https://${payload.ref}.supabase.co`;
+        console.log("Auto-recovered Supabase URL from JWT:", url);
+      }
+    } catch (e) {
+      console.warn("Failed to decode JWT to recover Supabase URL");
+    }
+  }
+
   // Validate URL format to prevent Supabase Client from crashing the server/app
   const isHttpUrl = url && (url.startsWith("http://") || url.startsWith("https://"));
   if (!isHttpUrl) {

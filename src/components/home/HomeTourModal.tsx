@@ -278,7 +278,7 @@ export function HomeTourModal() {
                           <span>Depósito Instantâneo via PIX</span>
                         </div>
                         <p className="text-[11px] text-white/70 leading-relaxed">
-                          Deposite a partir de <strong>R$ 20</strong> através do QR Code ou chave Copia & Cola oficial do Mercado Pago. O saldo é creditado no mesmo segundo na sua conta.
+                          Deposite a partir de <strong>R$ 20</strong> através do QR Code ou chave Copia & Cola oficial do PIX. O saldo é creditado no mesmo segundo na sua conta.
                         </p>
                       </div>
 
