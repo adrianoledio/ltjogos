@@ -323,45 +323,37 @@ class LocalDB {
 
   // Users
   async getUsers(): Promise<User[]> {
-    const cached = this.getStorageItem<User[]>('lt_users', []);
-
-    // Background revalidation
-    (async () => {
-      try {
-        const res = await fetch('/api/users');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
-            const formatted = data.map((u: any) => {
-              const localUser = cachedMap.get(u.id);
-              return {
-                ...u,
-                lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
-              };
-            });
-            this.setStorageItem('lt_users', formatted);
-          }
+    try {
+      const res = await fetch('/api/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const cached = this.getStorageItem<User[]>('lt_users', []);
+          const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
+          const formatted = data.map((u: any) => {
+            const localUser = cachedMap.get(u.id);
+            return {
+              ...u,
+              lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
+            };
+          });
+          this.setStorageItem('lt_users', formatted);
+          return formatted;
         }
-      } catch (e) {
-        // silent
       }
-    })();
-
-    return cached;
+    } catch (e) {
+      // Fallback to cache if network/API unavailable
+    }
+    return this.getStorageItem<User[]>('lt_users', []);
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    const cached = this.getStorageItem<User[]>('lt_users', []);
-    const local = cached.find(u => u.id === id);
-    if (local) return local;
-
     const users = await this.getUsers();
     return users.find(u => u.id === id);
   }
 
   async updateUser(updatedUser: User) {
-    // Sync locally first
+    // Sync locally
     const users = this.getStorageItem<User[]>('lt_users', []);
     const index = users.findIndex(u => u.id === updatedUser.id);
     if (index !== -1) {
@@ -371,7 +363,16 @@ class LocalDB {
     }
     this.setStorageItem('lt_users', users);
 
-    // Sync to API in background
+    // Direct Supabase update if configured
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('users').upsert(updatedUser);
+      } catch (e) {
+        // quiet
+      }
+    }
+
+    // Await API update to guarantee Supabase persistence
     try {
       await fetch('/api/users', {
         method: 'POST',
@@ -384,12 +385,19 @@ class LocalDB {
   }
 
   async deleteUser(userId: string) {
-    // Sync locally first
+    // Sync locally
     const users = this.getStorageItem<User[]>('lt_users', []);
     const filtered = users.filter(u => u.id !== userId);
     this.setStorageItem('lt_users', filtered);
 
-    // Sync to API
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('users').delete().eq('id', userId);
+      } catch (e) {
+        // quiet
+      }
+    }
+
     try {
       await fetch(`/api/users/${userId}`, {
         method: 'DELETE'
@@ -498,36 +506,31 @@ class LocalDB {
 
   // Games
   async getGames(): Promise<GameConfig[]> {
+    try {
+      const res = await fetch('/api/games');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const filtered = data.filter((g: any) => g.category === 'slots' || g.category === 'roletas');
+          this.setStorageItem('lt_games', filtered);
+          return filtered;
+        }
+      }
+    } catch (e) {
+      // Fallback
+    }
     const cached = this.getStorageItem<GameConfig[]>('lt_games', []);
     const initialList = cached.length > 0 ? cached : DEFAULT_GAMES;
-    const filteredInitial = initialList.filter(g => g.category === 'slots' || g.category === 'roletas');
-
-    // Asynchronous background revalidation so UI never blocks
-    (async () => {
-      try {
-        const res = await fetch('/api/games');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            this.setStorageItem('lt_games', data);
-          }
-        }
-      } catch (e) {
-        // Silent background fallback
-      }
-    })();
-
-    return filteredInitial;
+    return initialList.filter(g => g.category === 'slots' || g.category === 'roletas');
   }
 
   async getGame(id: string): Promise<GameConfig | undefined> {
-    const cached = this.getStorageItem<GameConfig[]>('lt_games', []);
-    const list = cached.length > 0 ? cached : DEFAULT_GAMES;
-    return list.find(g => g.id === id) || DEFAULT_GAMES.find(g => g.id === id);
+    const games = await this.getGames();
+    return games.find(g => g.id === id);
   }
 
   async updateGame(updatedGame: GameConfig) {
-    // Sync locally first
+    // Sync locally
     const games = this.getStorageItem<GameConfig[]>('lt_games', []);
     const index = games.findIndex(g => g.id === updatedGame.id);
     if (index !== -1) {
@@ -537,7 +540,18 @@ class LocalDB {
     }
     this.setStorageItem('lt_games', games);
 
-    // Sync to API
+    // Direct Supabase update if configured
+    if (isSupabaseConfigured) {
+      try {
+        const payload: any = { ...updatedGame };
+        delete payload.featured;
+        await supabase.from('games').upsert(payload);
+      } catch (err) {
+        // quiet
+      }
+    }
+
+    // Await API update
     try {
       await fetch('/api/games', {
         method: 'POST',
@@ -555,32 +569,32 @@ class LocalDB {
 
   // Settings
   async getSettings(): Promise<SystemSettings> {
-    const cached = this.getStorageItem<SystemSettings | null>('lt_settings', null);
-    
-    // Background revalidation
-    (async () => {
-      try {
-        const res = await fetch('/api/settings');
-        if (res.ok) {
-          const data = await res.json();
-          if (data) {
-            this.setStorageItem('lt_settings', data);
-          }
+    let settingsData: SystemSettings | null = null;
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data === 'object') {
+          settingsData = data;
+          this.setStorageItem('lt_settings', data);
         }
-      } catch (e) {
-        // background error handled silently
       }
-    })();
+    } catch (e) {
+      // Fallback
+    }
 
-    const settingsData = cached || DEFAULT_SETTINGS;
-    // Merge DEFAULT_SETTINGS to ensure any newly added structure/defaults exist
-    const merged = { ...DEFAULT_SETTINGS, ...settingsData };
+    if (!settingsData) {
+      settingsData = this.getStorageItem<SystemSettings | null>('lt_settings', null);
+    }
+
+    const base = settingsData || DEFAULT_SETTINGS;
+    const merged = { ...DEFAULT_SETTINGS, ...base };
     if (!merged.gamePrizes || !Array.isArray(merged.gamePrizes) || merged.gamePrizes.length === 0) {
       merged.gamePrizes = DEFAULT_SETTINGS.gamePrizes;
     } else {
       const mergedPrizes = [...DEFAULT_SETTINGS.gamePrizes];
-      if (Array.isArray(settingsData.gamePrizes)) {
-        settingsData.gamePrizes.forEach((p: any) => {
+      if (Array.isArray(base.gamePrizes)) {
+        base.gamePrizes.forEach((p: any) => {
           const idx = mergedPrizes.findIndex(mp => mp.gameId === p.gameId);
           if (idx !== -1) {
             mergedPrizes[idx] = p;
@@ -608,7 +622,15 @@ class LocalDB {
     }
     this.setStorageItem('lt_settings', settings);
 
-    // Sync to API
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('settings').upsert({ id: 'global', data: settings });
+      } catch (err) {
+        // quiet
+      }
+    }
+
+    // Await API update
     try {
       await fetch('/api/settings', {
         method: 'POST',
@@ -649,6 +671,14 @@ class LocalDB {
     notifications.push(newNotification);
     this.setStorageItem('lt_notifications', notifications);
 
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('notifications').upsert(newNotification);
+      } catch (e) {
+        // quiet
+      }
+    }
+
     // Sync to API
     try {
       await fetch('/api/notifications', {
@@ -668,6 +698,14 @@ class LocalDB {
     const notifications = this.getStorageItem<Notification[]>('lt_notifications', []);
     const filtered = notifications.filter(n => n.id !== id);
     this.setStorageItem('lt_notifications', filtered);
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('notifications').delete().eq('id', id);
+      } catch (e) {
+        // quiet
+      }
+    }
 
     // Sync to API
     try {
@@ -708,6 +746,14 @@ class LocalDB {
     promotions.push(newPromotion);
     this.setStorageItem('lt_promotions', promotions);
 
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('promotions').upsert(newPromotion);
+      } catch (e) {
+        // quiet
+      }
+    }
+
     // Sync to API
     try {
       await fetch('/api/promotions', {
@@ -727,6 +773,14 @@ class LocalDB {
     const promotions = this.getStorageItem<Promotion[]>('lt_promotions', []);
     const filtered = promotions.filter(p => p.id !== id);
     this.setStorageItem('lt_promotions', filtered);
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('promotions').delete().eq('id', id);
+      } catch (e) {
+        // quiet
+      }
+    }
 
     // Sync to API
     try {
@@ -767,6 +821,14 @@ class LocalDB {
     banners.push(newBanner);
     this.setStorageItem('lt_banners', banners);
 
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('banners').upsert(newBanner);
+      } catch (e) {
+        // quiet
+      }
+    }
+
     // Sync to API
     try {
       await fetch('/api/banners', {
@@ -786,6 +848,14 @@ class LocalDB {
     const banners = this.getStorageItem<Banner[]>('lt_banners', []);
     const filtered = banners.filter(b => b.id !== id);
     this.setStorageItem('lt_banners', filtered);
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('banners').delete().eq('id', id);
+      } catch (e) {
+        // quiet
+      }
+    }
 
     // Sync to API
     try {
