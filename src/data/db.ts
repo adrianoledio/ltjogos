@@ -323,6 +323,29 @@ class LocalDB {
 
   // Users
   async getUsers(): Promise<User[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('users').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const cached = this.getStorageItem<User[]>('lt_users', []);
+          const cachedMap = new Map(cached.map(cu => [cu.id, cu]));
+          const formatted = data.map((u: any) => {
+            const localUser = cachedMap.get(u.id);
+            return {
+              ...u,
+              unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
+              referralCounted: !!u.referralCounted,
+              lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
+            };
+          });
+          this.setStorageItem('lt_users', formatted);
+          return formatted;
+        }
+      } catch (e) {
+        // quiet fallback to API/cache
+      }
+    }
+
     try {
       const res = await fetch('/api/users');
       if (res.ok) {
@@ -506,6 +529,21 @@ class LocalDB {
 
   // Games
   async getGames(): Promise<GameConfig[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('games').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const filtered = data
+            .map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured }))
+            .filter((g: any) => g.category === 'slots' || g.category === 'roletas');
+          this.setStorageItem('lt_games', filtered);
+          return filtered;
+        }
+      } catch (e) {
+        // quiet fallback
+      }
+    }
+
     try {
       const res = await fetch('/api/games');
       if (res.ok) {
@@ -570,17 +608,34 @@ class LocalDB {
   // Settings
   async getSettings(): Promise<SystemSettings> {
     let settingsData: SystemSettings | null = null;
-    try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data === 'object') {
-          settingsData = data;
-          this.setStorageItem('lt_settings', data);
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('settings').select('*').eq('id', 'global').single();
+        if (!error && data && data.data) {
+          settingsData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+          if (settingsData) {
+            this.setStorageItem('lt_settings', settingsData);
+          }
         }
+      } catch (e) {
+        // quiet fallback
       }
-    } catch (e) {
-      // Fallback
+    }
+
+    if (!settingsData) {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data === 'object') {
+            settingsData = data;
+            this.setStorageItem('lt_settings', data);
+          }
+        }
+      } catch (e) {
+        // Fallback
+      }
     }
 
     if (!settingsData) {
@@ -644,6 +699,18 @@ class LocalDB {
 
   // Notifications
   async getNotifications(): Promise<Notification[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('notifications').select('*').order('createdAt', { ascending: false });
+        if (!error && Array.isArray(data)) {
+          this.setStorageItem('lt_notifications', data);
+          return data;
+        }
+      } catch (e) {
+        // quiet fallback
+      }
+    }
+
     try {
       const res = await fetch('/api/notifications');
       if (res.ok) {
@@ -719,6 +786,19 @@ class LocalDB {
 
   // Promotions
   async getPromotions(): Promise<Promotion[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('promotions').select('*');
+        if (!error && Array.isArray(data)) {
+          const list = data.map((p: any) => ({ ...p, active: !!p.active }));
+          this.setStorageItem('lt_promotions', list);
+          return list;
+        }
+      } catch (e) {
+        // quiet fallback
+      }
+    }
+
     try {
       const res = await fetch('/api/promotions');
       if (res.ok) {
@@ -794,6 +874,19 @@ class LocalDB {
 
   // Banners
   async getBanners(): Promise<Banner[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('banners').select('*');
+        if (!error && Array.isArray(data)) {
+          const list = data.map((b: any) => ({ ...b, active: !!b.active }));
+          this.setStorageItem('lt_banners', list);
+          return list;
+        }
+      } catch (e) {
+        // quiet fallback
+      }
+    }
+
     try {
       const res = await fetch('/api/banners');
       if (res.ok) {
