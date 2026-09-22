@@ -287,39 +287,11 @@ class LocalDB {
     if (this.memoryStorage[key] !== undefined) {
       return this.memoryStorage[key] as T;
     }
-    try {
-      const item = localStorage.getItem(key);
-      if (item) {
-        const parsed = JSON.parse(item);
-        this.memoryStorage[key] = parsed;
-        return parsed;
-      }
-      return defaultValue;
-    } catch (e) {
-      return defaultValue;
-    }
+    return defaultValue;
   }
 
   private setStorageItem<T>(key: string, value: T): void {
     this.memoryStorage[key] = value;
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      // If quota exceeded (e.g. large base64 media audio/images), save a sanitized version to localStorage as backup
-      try {
-        if (typeof value === 'object' && value !== null) {
-          const sanitized = JSON.parse(JSON.stringify(value, (k, v) => {
-            if (typeof v === 'string' && v.length > 30000 && (v.startsWith('data:audio') || v.startsWith('data:image') || v.startsWith('data:application'))) {
-              return ''; // Omit large base64 strings in localStorage cache
-            }
-            return v;
-          }));
-          localStorage.setItem(key, JSON.stringify(sanitized));
-        }
-      } catch {
-        // Quota exceeded handled safely without console spam
-      }
-    }
   }
 
   // Users

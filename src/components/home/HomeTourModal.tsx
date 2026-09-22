@@ -95,14 +95,11 @@ export function HomeTourModal() {
 
   // Check first-time visit
   useEffect(() => {
-    const hasSeen = localStorage.getItem('lt_has_seen_home_tour_v1');
-    if (!hasSeen) {
-      // Small timeout for smooth entry after UI renders
-      const timer = setTimeout(() => {
-        setShowModal(true);
-      }, 600);
-      return () => clearTimeout(timer);
-    }
+    // Show tour on first mount without localStorage dependency
+    const timer = setTimeout(() => {
+      setShowModal(true);
+    }, 600);
+    return () => clearTimeout(timer);
   }, []);
 
   // Listen for manual trigger (e.g. from topbar menu or help button)
@@ -151,7 +148,6 @@ export function HomeTourModal() {
   }, [isTourActive, currentStepIdx]);
 
   const handleFinishAll = () => {
-    localStorage.setItem('lt_has_seen_home_tour_v1', 'true');
     setShowModal(false);
     setIsTourActive(false);
   };

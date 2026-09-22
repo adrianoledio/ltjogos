@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initAuth = async () => {
       await db.init();
-      const storedUserId = localStorage.getItem('lt_active_user');
+      const storedUserId = null;
       if (storedUserId) {
         const found = await db.getUser(storedUserId);
         if (found) {
@@ -153,7 +153,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       await checkDailyLoginBonus(found);
       setUser(found);
-      localStorage.setItem('lt_active_user', found.id);
       return true;
     }
     return false;
@@ -243,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await db.updateUser(newUser);
       setUser(newUser);
-      localStorage.setItem('lt_active_user', newUser.id);
+      // localStorage.setItem('lt_active_user', newUser.id); // localStorage removed as per user request
       return true;
     } catch (err: any) {
       console.error("Database save failed during registration:", err);
@@ -253,7 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('lt_active_user');
+    // localStorage.removeItem('lt_active_user'); // localStorage removed as per user request
   };
 
   const updateBalance = async (amount: number, type: 'deposit' | 'withdraw' | 'bet' | 'win', gameId?: string, metadata?: any) => {
