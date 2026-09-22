@@ -25,13 +25,10 @@ export const ConfirmExitModal: React.FC<ConfirmExitModalProps> = ({
     : "Tem certeza de que deseja fechar o jogo e retornar ao Lobby?");
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          <div
             className={`w-full max-w-sm rounded-2xl bg-gradient-to-b ${
               isSpinning 
                 ? 'from-[#2b1212] to-[#0d0707] border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.3)]' 
@@ -77,9 +74,9 @@ export const ConfirmExitModal: React.FC<ConfirmExitModalProps> = ({
                 Confirmar Saída
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };

@@ -71,13 +71,10 @@ export const GameAlertModal: React.FC<GameAlertModalProps> = ({
   const styles = getThemeStyles();
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          <div
             className={`w-full max-w-sm rounded-2xl bg-gradient-to-b ${styles.fromTo} border p-5 text-center relative overflow-hidden`}
           >
             {/* Close Button top-right */}
@@ -128,9 +125,9 @@ export const GameAlertModal: React.FC<GameAlertModalProps> = ({
                 </button>
               )}
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };

@@ -10,13 +10,10 @@ interface DepositSuccessModalProps {
 
 export const DepositSuccessModal: React.FC<DepositSuccessModalProps> = ({ isOpen, amount, onClose }) => {
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          <div
             className="relative w-full max-w-md overflow-hidden bg-gradient-to-b from-stone-900 via-stone-900/95 to-stone-950 border border-emerald-500/40 rounded-3xl p-6 text-center shadow-2xl shadow-emerald-500/20"
           >
             {/* Background glow */}
@@ -59,9 +56,9 @@ export const DepositSuccessModal: React.FC<DepositSuccessModalProps> = ({ isOpen
               <span>Ir para o Lobby</span>
               <ArrowRight size={20} />
             </button>
-          </motion.div>
+          </div>
         </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };

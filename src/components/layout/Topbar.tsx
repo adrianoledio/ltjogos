@@ -101,20 +101,13 @@ export function Topbar() {
         {isMenuOpen && (
           <>
             {/* Backdrop Overlay */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div 
               onClick={closeMenu}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[99] cursor-pointer"
             />
 
             {/* Sidebar Drawer */}
-            <motion.div 
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+            <div 
               className="absolute left-0 top-0 bottom-0 w-[290px] bg-surface-card border-r border-border-rgba z-[100] flex flex-col shadow-[10px_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
             >
               {/* Drawer Header */}
@@ -426,7 +419,7 @@ export function Topbar() {
                   </button>
                 )}
               </div>
-            </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>

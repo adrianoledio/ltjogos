@@ -12,12 +12,9 @@ export const DailyBonusModal: React.FC<DailyBonusModalProps> = ({ isOpen, amount
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
+    <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        <div
           className="relative w-full max-w-sm bg-neutral-900 border border-amber-500/30 rounded-2xl p-6 text-center shadow-[0_0_50px_rgba(245,158,11,0.2)] overflow-hidden"
         >
           {/* Close button */}
@@ -66,8 +63,8 @@ export const DailyBonusModal: React.FC<DailyBonusModalProps> = ({ isOpen, amount
             <CheckCircle2 size={18} />
             Começar a Jogar
           </button>
-        </motion.div>
+        </div>
       </div>
-    </AnimatePresence>
+    </>
   );
 };
