@@ -22,7 +22,10 @@ CREATE TABLE IF NOT EXISTS users (
   "referralLink" TEXT,
   "withdrawalsCount" INTEGER DEFAULT 0,
   "referredBy" TEXT,
-  "referralCounted" BOOLEAN DEFAULT FALSE
+  "referralCounted" BOOLEAN DEFAULT FALSE,
+  "lastLoginBonusDate" TEXT,
+  "level" INTEGER DEFAULT 1,
+  "betVolume" DOUBLE PRECISION DEFAULT 0.0
 );
 
 -- 2. Tabela de Jogos (games)

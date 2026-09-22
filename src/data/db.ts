@@ -389,7 +389,30 @@ class LocalDB {
     // Direct Supabase update if configured
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('users').upsert(updatedUser);
+        const payload: any = { ...updatedUser };
+        // Remove client-only fields not present in Supabase users table schema
+        delete payload.level;
+        delete payload.betVolume;
+        delete payload.lastLoginBonusDate;
+
+        let { error } = await supabase.from('users').upsert(payload);
+        if (error) {
+          // If schema is missing phone, referral or extra columns, fallback to basic core columns
+          const minimal = {
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            password: updatedUser.password || '',
+            role: updatedUser.role,
+            balance: updatedUser.balance,
+            earnings: updatedUser.earnings,
+            createdAt: updatedUser.createdAt,
+            dailyPrizeTotal: updatedUser.dailyPrizeTotal || 0,
+            lastPrizeDate: updatedUser.lastPrizeDate || null,
+            referrals: updatedUser.referrals || 0
+          };
+          await supabase.from('users').upsert(minimal);
+        }
       } catch (e) {
         // quiet
       }
