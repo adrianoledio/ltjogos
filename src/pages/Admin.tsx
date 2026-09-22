@@ -274,14 +274,18 @@ export function Admin() {
     }
   };
 
-  const handleSettingsSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSettingsSave = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (settings) {
       try {
+        setIsLoading(true);
         await db.saveSettings(settings);
-        toast.success('Configurações salvas com sucesso!');
+        toast.success('Configurações salvas e sincronizadas com o Supabase!');
       } catch (error) {
+        console.error('Erro ao salvar configurações:', error);
         toast.error('Erro ao salvar configurações');
+      } finally {
+        setIsLoading(false);
       }
     }
   };
