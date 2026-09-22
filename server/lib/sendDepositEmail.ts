@@ -101,7 +101,7 @@ export async function sendDepositNotificationEmail(data: {
       });
 
       await transporter.sendMail({
-        from: `LT JOGOS <${smtpUser}>`,
+        from: settings?.emailFrom || `"LT JOGOS" <${smtpUser}>`,
         to: recipient,
         subject: subject,
         html: htmlContent
@@ -109,11 +109,10 @@ export async function sendDepositNotificationEmail(data: {
 
       console.log("Deposit notification email sent via SMTP to", recipient);
       return true;
-    } catch (e) {
-      console.warn("SMTP email attempt failed:", e);
+    } catch (smtpErr) {
+      console.warn("SMTP email notification failed:", smtpErr);
     }
   }
 
-  console.log(`[DEPOSIT NOTIFICATION EMAIL TO ${recipient}] Subject: "${subject}"`);
   return false;
 }

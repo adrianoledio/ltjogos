@@ -1,26 +1,21 @@
+export interface PixupTokenResponse {
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
+}
+
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
-export async function getPixupToken(clientId: string, clientSecret: string, forceRefresh = false): Promise<string> {
-  const cId = (clientId || '').trim();
-  const cSecret = (clientSecret || '').trim();
-
-  if (!cId || !cSecret) {
-    throw new Error("Client ID e Client Secret da PixUP são obrigatórios.");
-  }
-
-  const now = Date.now();
-  if (!forceRefresh && cachedToken && tokenExpiresAt > now + 30000) {
+export async function getPixupToken(clientId: string, clientSecret: string): Promise<string> {
+  if (cachedToken && Date.now() < tokenExpiresAt - 60000) {
     return cachedToken;
   }
 
-  const basicAuth = typeof Buffer !== 'undefined'
-    ? Buffer.from(`${cId}:${cSecret}`).toString('base64')
-    : btoa(`${cId}:${cSecret}`);
+  const basicAuth = Buffer.from(`${clientId.trim()}:${clientSecret.trim()}`).toString('base64');
+  console.log(`[PixUP] Autenticando com Client ID: ${clientId}`);
 
-  console.log(`[PixUP Auth] Solicitando access_token para Client ID: ${cId.substring(0, 8)}...`);
-
-  const response = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+  const res = await fetch("https://api.pixupbr.com/v2/oauth/token", {
     method: "POST",
     headers: {
       "Authorization": `Basic ${basicAuth}`,
@@ -28,25 +23,24 @@ export async function getPixupToken(clientId: string, clientSecret: string, forc
     }
   });
 
-  const responseText = await response.text();
-  let data: any = {};
+  const resText = await res.text();
+  let resData: any = {};
   try {
-    data = JSON.parse(responseText);
+    resData = JSON.parse(resText);
   } catch (e) {
-    data = { message: responseText };
+    resData = { message: resText };
   }
 
-  if (!response.ok || data.success === false) {
-    const errMsg = data.error?.message || data.message || data.error || "Credenciais inválidas na PixUP.";
-    console.error("[PixUP Auth] Erro de autenticação:", response.status, JSON.stringify(data));
-    throw new Error(`Erro ao autenticar na PixUP: ${errMsg}`);
+  if (!res.ok || resData.success === false) {
+    const errorMsg = resData.error?.message || resData.message || resData.error || `HTTP ${res.status}: Credenciais recusadas pela PixUP.`;
+    throw new Error(errorMsg);
   }
 
-  const token = data.access_token || data.accessToken || data.token || data.data?.access_token || data.data?.accessToken;
-  const expiresIn = data.expires_in || data.expiresIn || data.data?.expires_in || 3600;
+  const token = resData.access_token || resData.accessToken || resData.token || resData.data?.access_token;
+  const expiresIn = resData.expires_in || resData.expiresIn || resData.data?.expires_in || 3600;
 
   if (!token) {
-    throw new Error("Token de acesso não retornado pela PixUP.");
+    throw new Error("Token não retornado pela API PixUP.");
   }
 
   cachedToken = token;
@@ -150,7 +144,6 @@ export async function createPixupCashin(params: CreatePixupCashinParams) {
     pixupTransactionId: pixupTxId,
     qrCode,
     qrCodeBase64,
-    expiresAt: info.payment_info?.expires_at,
-    raw: resData
+    expiresAt: info.payment_info?.expires_at
   };
 }

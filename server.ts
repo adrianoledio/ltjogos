@@ -2,8 +2,8 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
-import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail";
-import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status";
+import { sendDepositNotificationEmail } from "./server/lib/sendDepositEmail";
+import { verifyAndApprovePayment, syncAllPendingDeposits } from "./server/services/checkStatus";
 import { getValidSupabaseCredentials } from "./src/lib/supabase";
 import { RtpMonitor } from "./server/rtpMonitor";
 import {
