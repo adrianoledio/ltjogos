@@ -182,129 +182,46 @@ export function Wallet() {
         const pixupClientId = (settings?.pixupClientId || 'adrianoledio_f27410f412960abf').trim();
         const pixupClientSecret = (settings?.pixupClientSecret || '').trim();
         const pixupPostbackUrl = (settings?.pixupPostbackUrl || 'https://ltjogos.vercel.app/webhook').trim();
-        let pixupToken = ((settings?.pixupToken || settings?.mpAccessToken) || '').trim();
+        const pixupToken = ((settings?.pixupToken || settings?.mpAccessToken) || '').trim();
 
-        let isSuccess = false;
-
-        try {
-          const response = await fetch('/api/payments/pix', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount: val,
-              bonus: bonusVal,
-              userId: user.id,
-              name: user.name || 'Jogador LT Jogos',
-              email: user.email || `${user.phone || 'usuario'}@ltjogos.com`,
-              pixupClientId,
-              pixupClientSecret,
-              postbackUrl: pixupPostbackUrl
-            })
-          });
-
-          const contentType = response.headers.get('content-type') || '';
-          
-          if (contentType.includes('application/json')) {
-            const data = await response.json();
-            if (response.ok && data.success) {
-              setQrCode(data.qrCode);
-              setQrCodeBase64(data.qrCodeBase64);
-              setActiveTxId(data.transactionId);
-              setShowQr(true);
-              setTransactions(await db.getTransactions());
-              toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
-              isSuccess = true;
-            } else if (data.error) {
-              toast.error('Erro ao gerar PIX: ' + data.error);
-              isSuccess = true;
-            }
-          }
-        } catch (apiErr) {
-          console.warn("Backend API not reachable, attempting direct PixUP fallback...", apiErr);
+        if (!pixupClientSecret && !pixupToken) {
+          toast.error('Client Secret da PixUP não configurado. Acesse o Painel Admin > Gateway para salvar suas credenciais.');
+          setIsGeneratingPix(false);
+          return;
         }
 
-        // Direct client-side fallback if backend route had a network issue
-        if (!isSuccess && (!pixupToken && pixupClientId && pixupClientSecret)) {
-          try {
-            const basicAuth = btoa(`${pixupClientId}:${pixupClientSecret}`);
-            const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
-              method: "POST",
-              headers: {
-                "Authorization": `Basic ${basicAuth}`,
-                "Content-Type": "application/json"
-              }
-            });
-            if (authRes.ok) {
-              const authData = await authRes.json();
-              pixupToken = authData.access_token || authData.accessToken || authData.token || authData.data?.access_token || '';
-            }
-          } catch (authErr) {
-            console.warn("Client fallback OAuth error:", authErr);
+        const response = await fetch('/api/payments/pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: val,
+            bonus: bonusVal,
+            userId: user.id,
+            name: user.name || 'Jogador LT Jogos',
+            email: user.email || `${user.phone || 'usuario'}@ltjogos.com`,
+            pixupClientId,
+            pixupClientSecret,
+            token: pixupToken,
+            postbackUrl: pixupPostbackUrl
+          })
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          if (response.ok && data.success) {
+            setQrCode(data.qrCode);
+            setQrCodeBase64(data.qrCodeBase64);
+            setActiveTxId(data.transactionId);
+            setShowQr(true);
+            setTransactions(await db.getTransactions());
+            toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
+          } else {
+            const errorMsg = data.error || data.message || 'Não foi possível gerar o PIX. Verifique suas credenciais da PixUP.';
+            toast.error(errorMsg);
           }
-        }
-
-        if (!isSuccess && pixupToken) {
-          try {
-            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-            const pixupRes = await fetch("https://api.pixupbr.com/v2/transactions/cashin", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${pixupToken}`
-              },
-              body: JSON.stringify({
-                amount: Number(val.toFixed(2)),
-                currency: "BRL",
-                external_id: txId,
-                payer: {
-                  name: user.name || "Jogador LT Jogos",
-                  email: user.email && user.email.includes('@') ? user.email : "usuario@ltjogos.com"
-                },
-                postback_url: pixupPostbackUrl || "https://ltjogos.vercel.app/webhook"
-              })
-            });
-
-            const pixupData = await pixupRes.json();
-            if (pixupRes.ok && (pixupData.success !== false)) {
-              const resInfo = pixupData.data || pixupData;
-              const qrCode = resInfo.payment_info?.qrcode || resInfo.qrcode || resInfo.payment_info?.qr_code || '';
-              const qrCodeBase64 = resInfo.payment_info?.qrcode_base64 || resInfo.qrcode_base64 || '';
-
-              const newTx = await db.addTransaction({
-                userId: user.id,
-                type: 'deposit',
-                amount: val,
-                status: 'pending',
-                metadata: {
-                  pixupTransactionId: resInfo.transaction_id || resInfo.id,
-                  qrCode,
-                  qrCodeBase64,
-                  bonus: bonusVal,
-                  gateway: 'pixup'
-                }
-              });
-
-              setQrCode(qrCode);
-              setQrCodeBase64(qrCodeBase64);
-              setActiveTxId(newTx.id);
-              setShowQr(true);
-              setTransactions(await db.getTransactions());
-              toast.success('PIX gerado com sucesso via PixUP!');
-              isSuccess = true;
-            } else {
-              const errorMsg = pixupData.message || pixupData.error || 'Erro ao gerar PIX na PixUP.';
-              toast.error('Erro ao gerar PIX: ' + errorMsg);
-              isSuccess = true;
-            }
-          } catch (directErr: any) {
-            console.error("Direct PixUP fetch failed:", directErr);
-          }
-        }
-
-        if (!isSuccess && !pixupClientSecret && !pixupToken) {
-          toast.error('Client Secret da PixUP não configurado. Acesse o Painel Admin > Configurações > Gateway e salve suas credenciais.');
-        } else if (!isSuccess) {
-          toast.error('Não foi possível gerar o PIX. Verifique suas credenciais da PixUP nas Configurações.');
+        } else {
+          toast.error('Erro de comunicação com o servidor ao gerar o PIX.');
         }
 
       } catch (error: any) {

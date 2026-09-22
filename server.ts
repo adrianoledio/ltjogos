@@ -908,6 +908,51 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     return token;
   }
 
+  // PixUP Test Connection Endpoint (Server-side to avoid CORS)
+  app.post("/api/pixup/test", async (req, res) => {
+    try {
+      const { clientId: reqCId, clientSecret: reqCSecret } = req.body;
+      let cId = (reqCId || "").trim() || process.env.PIXUP_CLIENT_ID || process.env.VITE_PIXUP_CLIENT_ID || "adrianoledio_f27410f412960abf";
+      let cSecret = (reqCSecret || "").trim() || process.env.PIXUP_CLIENT_SECRET || process.env.VITE_PIXUP_CLIENT_SECRET || "";
+
+      if (!cSecret) {
+        try {
+          const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
+          if (settingsData && settingsData.data) {
+            const s = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+            if (s.pixupClientSecret) cSecret = s.pixupClientSecret.trim();
+            if (s.pixupClientId) cId = s.pixupClientId.trim();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      if (!cSecret) {
+        return res.status(400).json({ success: false, error: "Client Secret não fornecido. Preencha o Client Secret da PixUP." });
+      }
+
+      const basicAuth = Buffer.from(`${cId}:${cSecret}`).toString('base64');
+      const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${basicAuth}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const authData: any = await authRes.json();
+      if (!authRes.ok || authData.success === false) {
+        const errDetail = authData.error?.message || authData.message || authData.error || "Credenciais recusadas pela PixUP.";
+        return res.status(400).json({ success: false, error: errDetail });
+      }
+
+      return res.json({ success: true, message: "Conexão PixUP testada e aprovada com sucesso!" });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message || "Erro ao conectar com PixUP" });
+    }
+  });
+
   // PixUP Gateway Endpoints
   app.post("/api/payments/pix", async (req, res) => {
     try {
@@ -945,7 +990,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       let settings: any = null;
       if ((!clientId || !clientSecret) && !directToken) {
         try {
-          const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+          const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
           if (settingsData && settingsData.data) {
             settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
             if (settings) {

@@ -297,19 +297,21 @@ export function Admin() {
 
     setIsTestingPixup(true);
     try {
-      const basicAuth = btoa(`${cId}:${cSecret}`);
-      const res = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+      const res = await fetch("/api/pixup/test", {
         method: "POST",
         headers: {
-          "Authorization": `Basic ${basicAuth}`,
           "Content-Type": "application/json"
-        }
+        },
+        body: JSON.stringify({
+          clientId: cId,
+          clientSecret: cSecret
+        })
       });
       const data = await res.json();
-      if (res.ok && (data.access_token || data.token || data.data?.access_token)) {
+      if (res.ok && data.success) {
         toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
       } else {
-        const msg = data.error?.message || data.message || data.error || 'Credenciais inválidas ou recusadas pela PixUP.';
+        const msg = data.error || 'Credenciais inválidas ou recusadas pela PixUP.';
         toast.error(`Falha PixUP: ${msg}`);
       }
     } catch (err: any) {

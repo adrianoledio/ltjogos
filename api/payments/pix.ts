@@ -53,7 +53,7 @@ export default async function handler(req: any, res: any) {
 
     if ((!clientId || !clientSecret) && !directToken && supabase) {
       try {
-        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
         if (settingsData && settingsData.data) {
           const settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
           if (settings) {
