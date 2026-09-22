@@ -2,10 +2,10 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@supabase/supabase-js";
 import path from "path";
-import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail.js";
-import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status.js";
-import { getValidSupabaseCredentials } from "./src/lib/supabase.js";
-import { RtpMonitor } from "./server/rtpMonitor.js";
+import { sendDepositNotificationEmail } from "./api/lib/sendDepositEmail";
+import { verifyAndApprovePayment, syncAllPendingDeposits } from "./api/payments/check-status";
+import { getValidSupabaseCredentials } from "./src/lib/supabase";
+import { RtpMonitor } from "./server/rtpMonitor";
 import {
   computeTattooSlotOutcome,
   computeYakuzaInkOutcome,
@@ -14,7 +14,7 @@ import {
   computeTattooCashOutcome,
   computeRoulettaInkOutcome,
   computeInkRevealOutcome,
-} from "./server/slotEngine.js";
+} from "./server/slotEngine";
 
 // Supabase Configuration
 const { url: validServerUrl, key: validServerKey } = getValidSupabaseCredentials();
@@ -272,10 +272,22 @@ async function testAndSeedSupabase() {
     console.log("Unexpected error testing/seeding Supabase:", err.message || err);
   }
 }
-testAndSeedSupabase();
+if (!process.env.VERCEL) {
+  testAndSeedSupabase();
+}
 
 export const app = express();
 app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+  );
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');

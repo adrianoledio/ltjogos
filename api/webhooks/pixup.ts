@@ -37,7 +37,7 @@ export default async function handler(req: any, res: any) {
       if (supabaseUrl && supabaseKey) {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
         const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
 
         // Query pending deposit transactions
@@ -61,14 +61,14 @@ export default async function handler(req: any, res: any) {
               const bonus = Number(metadata?.bonus || 0);
               const totalAdd = Number(tx.amount) + bonus;
 
-              const { data: user } = await supabase.from("users").select("id, balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).single();
+              const { data: user } = await supabase.from("users").select("id, balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).maybeSingle();
               if (user) {
                 const newBalance = (Number(user.balance) || 0) + totalAdd;
                 await supabase.from("users").update({ balance: newBalance }).eq("id", user.id);
 
                 // Handle referral bonus
                 if (user.referredBy && !user.referralCounted) {
-                  const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).single();
+                  const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).maybeSingle();
                   if (referrer) {
                     const newReferrals = (Number(referrer.referrals) || 0) + 1;
                     let unlockFirstWithdrawal = referrer.unlockFirstWithdrawal;

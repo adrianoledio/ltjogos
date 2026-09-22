@@ -12,7 +12,7 @@ export async function approvePendingTx(supabase: any, tx: any, settings: any) {
   // Mark completed
   await supabase.from("transactions").update({ status: 'completed' }).eq("id", tx.id);
 
-  const { data: user } = await supabase.from("users").select("id, balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).single();
+  const { data: user } = await supabase.from("users").select("id, balance, phone, name, email, referredBy, referralCounted").eq("id", tx.userId).maybeSingle();
 
   if (user) {
     const newBalance = (Number(user.balance) || 0) + totalAdd;
@@ -20,7 +20,7 @@ export async function approvePendingTx(supabase: any, tx: any, settings: any) {
 
     // Referral logic
     if (user.referredBy && !user.referralCounted) {
-      const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).single();
+      const { data: referrer } = await supabase.from("users").select("id, referrals, unlockFirstWithdrawal").eq("id", user.referredBy).maybeSingle();
       if (referrer) {
         const newReferrals = (referrer.referrals || 0) + 1;
         let unlockFirstWithdrawal = referrer.unlockFirstWithdrawal;
@@ -61,7 +61,7 @@ export async function syncAllPendingDeposits() {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // 1. Get settings for pixup credentials
-  const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+  const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
   const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
   
   let pixupToken = settings?.pixupToken || process.env.PIXUP_API_TOKEN || process.env.PIXUP_TOKEN || process.env.VITE_PIXUP_TOKEN;
@@ -150,7 +150,7 @@ export async function verifyAndApprovePayment(paymentId: string | number, txId?:
 
   const completedTx = transactions.find(t => t.status === "completed");
   if (completedTx) {
-    const { data: user } = await supabase.from("users").select("balance").eq("id", completedTx.userId).single();
+    const { data: user } = await supabase.from("users").select("balance").eq("id", completedTx.userId).maybeSingle();
     return { approved: true, status: "approved", newBalance: user?.balance || 0, txId: completedTx.id };
   }
 

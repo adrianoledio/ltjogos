@@ -15,7 +15,7 @@ export default async function handler(req: any, res: any) {
     if (supabaseUrl && supabaseKey) {
       try {
         const supabase = createClient(supabaseUrl.startsWith("http") ? supabaseUrl : `https://${supabaseUrl}`, supabaseKey);
-        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
         if (settingsData && settingsData.data) {
           settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
         }
