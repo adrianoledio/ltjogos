@@ -425,7 +425,8 @@ class LocalDB {
             createdAt: updatedUser.createdAt,
             dailyPrizeTotal: updatedUser.dailyPrizeTotal || 0,
             lastPrizeDate: updatedUser.lastPrizeDate || null,
-            referrals: updatedUser.referrals || 0
+            referrals: updatedUser.referrals || 0,
+            referralCode: updatedUser.referralCode || null
           };
           await supabase.from('users').upsert(minimal);
         }
