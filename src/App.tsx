@@ -44,6 +44,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user) return <Navigate to="/app" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -53,9 +59,9 @@ export default function App() {
           <AudioProvider>
             <Router>
               <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+                <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+                <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
                 
                 <Route path="/app" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                   <Route index element={<Home />} />
