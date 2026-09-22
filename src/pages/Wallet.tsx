@@ -206,22 +206,23 @@ export function Wallet() {
           })
         });
 
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const data = await response.json();
-          if (response.ok && data.success) {
-            setQrCode(data.qrCode);
-            setQrCodeBase64(data.qrCodeBase64);
-            setActiveTxId(data.transactionId);
-            setShowQr(true);
-            setTransactions(await db.getTransactions());
-            toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
-          } else {
-            const errorMsg = data.error || data.message || 'Não foi possível gerar o PIX. Verifique suas credenciais da PixUP.';
-            toast.error(errorMsg);
-          }
+        let data: any = null;
+        try {
+          data = await response.json();
+        } catch (parseErr) {
+          console.warn("Resposta não-JSON ao gerar PIX:", parseErr);
+        }
+
+        if (response.ok && data?.success) {
+          setQrCode(data.qrCode);
+          setQrCodeBase64(data.qrCodeBase64);
+          setActiveTxId(data.transactionId);
+          setShowQr(true);
+          setTransactions(await db.getTransactions());
+          toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
         } else {
-          toast.error('Erro de comunicação com o servidor ao gerar o PIX.');
+          const errorMsg = data?.error || data?.message || (response.status === 404 ? 'Serviço de pagamentos não encontrado.' : 'Não foi possível gerar o PIX. Verifique suas credenciais da PixUP.');
+          toast.error(errorMsg);
         }
 
       } catch (error: any) {

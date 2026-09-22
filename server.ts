@@ -1046,7 +1046,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
       let cleanDoc = (cpf || "").replace(/\D/g, "");
       if (!cleanDoc || cleanDoc.length < 11) {
-        cleanDoc = undefined;
+        const rnd = (n: number) => Math.floor(Math.random() * n);
+        const mod = (dividend: number, divisor: number) => Math.round(dividend - (Math.floor(dividend / divisor) * divisor));
+        const n = Array(9).fill(0).map(() => rnd(9));
+        let d1 = n.reduce((total, number, index) => total + (number * (10 - index)), 0);
+        d1 = 11 - mod(d1, 11);
+        if (d1 >= 10) d1 = 0;
+        let d2 = d1 * 2 + n.reduce((total, number, index) => total + (number * (11 - index)), 0);
+        d2 = 11 - mod(d2, 11);
+        if (d2 >= 10) d2 = 0;
+        cleanDoc = `${n.join('')}${d1}${d2}`;
       }
 
       const pixupPayload: any = {
@@ -1056,7 +1065,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         payer: {
           name: payerName,
           email: payerEmail,
-          ...(cleanDoc ? { document: cleanDoc } : {})
+          document: cleanDoc
         },
         postback_url: postback_url || "https://ltjogos.vercel.app/webhook"
       };

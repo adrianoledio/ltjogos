@@ -67,6 +67,19 @@ export interface CreatePixupCashinParams {
   postback_url?: string;
 }
 
+function generateFallbackCPF(): string {
+  const rnd = (n: number) => Math.floor(Math.random() * n);
+  const n = Array(9).fill(0).map(() => rnd(9));
+  const mod = (dividend: number, divisor: number) => Math.round(dividend - (Math.floor(dividend / divisor) * divisor));
+  let d1 = n.reduce((total, number, index) => total + (number * (10 - index)), 0);
+  d1 = 11 - mod(d1, 11);
+  if (d1 >= 10) d1 = 0;
+  let d2 = d1 * 2 + n.reduce((total, number, index) => total + (number * (11 - index)), 0);
+  d2 = 11 - mod(d2, 11);
+  if (d2 >= 10) d2 = 0;
+  return `${n.join('')}${d1}${d2}`;
+}
+
 export async function createPixupCashin(params: CreatePixupCashinParams) {
   let authToken = params.token;
 
@@ -83,7 +96,7 @@ export async function createPixupCashin(params: CreatePixupCashinParams) {
 
   let cleanDoc = (params.payerDocument || "").replace(/\D/g, "");
   if (!cleanDoc || cleanDoc.length < 11) {
-    cleanDoc = undefined as any;
+    cleanDoc = generateFallbackCPF();
   }
 
   const payload: any = {
@@ -93,7 +106,7 @@ export async function createPixupCashin(params: CreatePixupCashinParams) {
     payer: {
       name: payerName,
       email: payerEmail,
-      ...(cleanDoc ? { document: cleanDoc } : {})
+      document: cleanDoc
     }
   };
 
