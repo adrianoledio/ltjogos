@@ -28,7 +28,13 @@ export async function getPixupToken(clientId: string, clientSecret: string, forc
     }
   });
 
-  const data = await response.json();
+  const responseText = await response.text();
+  let data: any = {};
+  try {
+    data = JSON.parse(responseText);
+  } catch (e) {
+    data = { message: responseText };
+  }
 
   if (!response.ok || data.success === false) {
     const errMsg = data.error?.message || data.message || data.error || "Credenciais inválidas na PixUP.";
@@ -107,7 +113,13 @@ export async function createPixupCashin(params: CreatePixupCashinParams) {
     body: JSON.stringify(payload)
   });
 
-  const resData = await res.json();
+  const resText = await res.text();
+  let resData: any = {};
+  try {
+    resData = JSON.parse(resText);
+  } catch (e) {
+    resData = { message: resText };
+  }
   console.log("[PixUP Cashin] Resposta:", res.status, JSON.stringify(resData));
 
   if (!res.ok || resData.success === false) {
