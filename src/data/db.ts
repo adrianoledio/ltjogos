@@ -21,6 +21,7 @@ export interface User {
   referrals: number;
   unlockFirstWithdrawal: boolean;
   referralLink: string;
+  referralCode?: string;
   withdrawalsCount: number;
   referredBy?: string;
   referralCounted?: boolean;
@@ -376,8 +377,10 @@ class LocalDB {
 
   async getUser(id: string): Promise<User | undefined> {
     // 1. First priority: Direct query to Supabase for this exact user
-    console.log("isSupabaseConfigured:", isSupabaseConfigured);
-    if (isSupabaseConfigured) {
+    // Only attempt direct query if ID is a valid UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    if (isSupabaseConfigured && isUUID) {
       try {
         console.log("Attempting direct Supabase fetch for user:", id);
         const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
@@ -1082,7 +1085,7 @@ class LocalDB {
         lastPrizeDate: new Date().toISOString().split('T')[0],
         referrals: 0,
         unlockFirstWithdrawal: true,
-        referralLink: `https://ltjogos.vercel.app/register?ref=admin-phone-21982331392`,
+        referralLink: `https://ltjogos.vercel.app/home?ref=admin-phone-21982331392`,
         withdrawalsCount: 0,
         level: 5,
         betVolume: 0,

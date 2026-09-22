@@ -34,7 +34,7 @@ export function Referral() {
       const url = new URL(user.referralLink);
       return `https://ltjogos.vercel.app${url.pathname}${url.search}`;
     } catch {
-      return `https://ltjogos.vercel.app/register?ref=${user.id}`;
+      return `https://ltjogos.vercel.app/home?ref=${user.id}`;
     }
   };
   const displayReferralLink = getReferralLink();

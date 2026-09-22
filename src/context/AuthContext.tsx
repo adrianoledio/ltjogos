@@ -63,9 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             found.earnings = 0;
             updated = true;
           }
-          // Ensure referralLink exists and is not empty
-          if (!found.referralLink) {
-            found.referralLink = `${window.location.origin}/register?ref=${found.id}`;
+          // Ensure referralLink and referralCode exist
+          if (!found.referralLink || !found.referralCode) {
+            found.referralCode = Math.random().toString(36).substring(2, 10);
+            found.referralLink = `${window.location.origin}/?ref=${found.referralCode}`;
             updated = true;
           }
           // Ensure level and betVolume exist
@@ -138,8 +139,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (found) {
       let updated = false;
-      if (!found.referralLink) {
-        found.referralLink = `https://ltjogos.vercel.app/register?ref=${found.id}`;
+      if (!found.referralLink || !found.referralCode) {
+        found.referralCode = Math.random().toString(36).substring(2, 10);
+        found.referralLink = `https://ltjogos.vercel.app/?ref=${found.referralCode}`;
         updated = true;
       }
       if (updated) {
@@ -194,18 +196,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Este telefone já está cadastrado.');
     }
 
-    const userId = Math.random().toString(36).substring(2, 9);
-    const referralLink = `https://ltjogos.vercel.app/register?ref=${userId}`;
+    const userId = crypto.randomUUID();
+    const referralCode = Math.random().toString(36).substring(2, 10);
+    const referralLink = `https://ltjogos.vercel.app/?ref=${referralCode}`;
     
     // Check for referral
     const urlParams = new URLSearchParams(window.location.search);
-    const refId = urlParams.get('ref');
+    const refParam = urlParams.get('ref');
     let referredBy: string | undefined = undefined;
 
-    if (refId && refId !== userId) {
-      const referrer = users.find(u => u.id === refId);
+    if (refParam) {
+      // Find the user who has this referralCode or userId
+      const referrer = users.find(u => u.referralCode === refParam || u.id === refParam);
       if (referrer) {
-        referredBy = refId;
+        referredBy = referrer.id;
       }
     }
 
@@ -228,6 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       referrals: 0,
       unlockFirstWithdrawal: isAdmin,
       referralLink,
+      referralCode,
       withdrawalsCount: 0,
       referredBy,
       referralCounted: false,
