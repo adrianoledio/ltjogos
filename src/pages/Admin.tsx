@@ -307,11 +307,11 @@ export function Admin() {
           clientSecret: cSecret
         })
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = await res.json().catch(() => ({ success: false, error: "Resposta inesperada do servidor" }));
+      if (data && data.success) {
         toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
       } else {
-        const msg = data.error || 'Credenciais inválidas ou recusadas pela PixUP.';
+        const msg = data?.error || 'Credenciais inválidas ou recusadas pela PixUP.';
         toast.error(`Falha PixUP: ${msg}`);
       }
     } catch (err: any) {

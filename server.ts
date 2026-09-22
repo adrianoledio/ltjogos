@@ -923,7 +923,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   // PixUP Test Connection Endpoint (Server-side to avoid CORS)
   app.post("/api/pixup/test", async (req, res) => {
     try {
-      const { clientId: reqCId, clientSecret: reqCSecret } = req.body;
+      const { clientId: reqCId, clientSecret: reqCSecret } = req.body || {};
       let cId = (reqCId || "").trim() || process.env.PIXUP_CLIENT_ID || process.env.VITE_PIXUP_CLIENT_ID || "adrianoledio_f27410f412960abf";
       let cSecret = (reqCSecret || "").trim() || process.env.PIXUP_CLIENT_SECRET || process.env.VITE_PIXUP_CLIENT_SECRET || "";
 
@@ -941,7 +941,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
 
       if (!cSecret) {
-        return res.status(400).json({ success: false, error: "Client Secret não fornecido. Preencha o Client Secret da PixUP." });
+        return res.json({ success: false, error: "Client Secret não fornecido. Preencha o Client Secret da PixUP." });
       }
 
       const basicAuth = Buffer.from(`${cId}:${cSecret}`).toString('base64');
@@ -953,15 +953,22 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         }
       });
 
-      const authData: any = await authRes.json();
+      const responseText = await authRes.text();
+      let authData: any = {};
+      try {
+        authData = JSON.parse(responseText);
+      } catch (e) {
+        authData = { message: responseText };
+      }
+
       if (!authRes.ok || authData.success === false) {
-        const errDetail = authData.error?.message || authData.message || authData.error || "Credenciais recusadas pela PixUP.";
-        return res.status(400).json({ success: false, error: errDetail });
+        const errDetail = authData.error?.message || authData.message || authData.error || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
+        return res.json({ success: false, error: errDetail });
       }
 
       return res.json({ success: true, message: "Conexão PixUP testada e aprovada com sucesso!" });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message || "Erro ao conectar com PixUP" });
+      return res.json({ success: false, error: err.message || "Erro ao conectar com PixUP" });
     }
   });
 

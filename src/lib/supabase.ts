@@ -4,18 +4,20 @@ export function getValidSupabaseCredentials() {
   let url = "";
   let key = "";
 
-  // Server-side
-  if (typeof process !== "undefined" && process.env) {
-    url = process.env.VITE_SUPABASE_URL || "";
-    key = process.env.VITE_SUPABASE_ANON_KEY || "";
+  // Server-side / Node / Serverless environment
+  if (typeof process !== "undefined" && process?.env) {
+    url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+    key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
   }
 
-  // Client-side fallback
+  // Client-side Vite environment
   if (!url || !key) {
     try {
-      // Avoid syntax errors in non-Vite/SSR environments
-      url = (import.meta.env?.VITE_SUPABASE_URL) || "";
-      key = (import.meta.env?.VITE_SUPABASE_ANON_KEY) || "";
+      const meta = import.meta as any;
+      if (meta && meta.env) {
+        url = meta.env.VITE_SUPABASE_URL || "";
+        key = meta.env.VITE_SUPABASE_ANON_KEY || "";
+      }
     } catch (e) {
       // Ignore
     }

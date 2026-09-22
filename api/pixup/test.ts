@@ -20,7 +20,15 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { clientId: reqCId, clientSecret: reqCSecret } = req.body || {};
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        body = {};
+      }
+    }
+    const { clientId: reqCId, clientSecret: reqCSecret } = body || {};
     let cId = (reqCId || "").trim() || process.env.PIXUP_CLIENT_ID || process.env.VITE_PIXUP_CLIENT_ID || "adrianoledio_f27410f412960abf";
     let cSecret = (reqCSecret || "").trim() || process.env.PIXUP_CLIENT_SECRET || process.env.VITE_PIXUP_CLIENT_SECRET || "";
 
@@ -42,7 +50,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!cSecret) {
-      return res.status(400).json({ success: false, error: "Client Secret não fornecido. Preencha o Client Secret da PixUP no painel." });
+      return res.status(200).json({ success: false, error: "Client Secret não fornecido. Preencha o Client Secret da PixUP no painel." });
     }
 
     const basicAuth = Buffer.from(`${cId}:${cSecret}`).toString('base64');
@@ -54,15 +62,22 @@ export default async function handler(req: any, res: any) {
       }
     });
 
-    const authData: any = await authRes.json();
+    const responseText = await authRes.text();
+    let authData: any = {};
+    try {
+      authData = JSON.parse(responseText);
+    } catch (e) {
+      authData = { message: responseText };
+    }
+
     if (!authRes.ok || authData.success === false) {
-      const errDetail = authData.error?.message || authData.message || authData.error || "Credenciais recusadas pela PixUP.";
-      return res.status(400).json({ success: false, error: errDetail });
+      const errDetail = authData.error?.message || authData.message || authData.error || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
+      return res.status(200).json({ success: false, error: errDetail });
     }
 
     return res.status(200).json({ success: true, message: "Conexão PixUP testada e aprovada com sucesso!" });
   } catch (err: any) {
     console.error("Error in /api/pixup/test:", err);
-    return res.status(500).json({ success: false, error: err?.message || "Erro interno ao conectar com PixUP" });
+    return res.status(200).json({ success: false, error: err?.message || "Erro interno ao conectar com PixUP" });
   }
 }
