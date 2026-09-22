@@ -3,6 +3,7 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/webhook(.*)", "destination": "/api/index" },
-    { "source": "/((?!api|webhook).*)", "destination": "/index.html" }
+    { "source": "/app/webhook(.*)", "destination": "/api/index" },
+    { "source": "/((?!api|webhook|app/webhook).*)", "destination": "/index.html" }
   ]
 }

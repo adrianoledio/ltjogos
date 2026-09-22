@@ -305,7 +305,7 @@ app.use((req, res, next) => {
   // Normalize URLs for Vercel Serverless Function rewrites:
   // e.g. Vercel rewrites /api/* to /api/index, but provides original path in x-matched-path
   const matched = (req.headers['x-matched-path'] || req.headers['x-invoke-path']) as string;
-  if (matched && typeof matched === 'string' && (matched.startsWith('/api') || matched.startsWith('/webhook'))) {
+  if (matched && typeof matched === 'string' && (matched.startsWith('/api') || matched.startsWith('/webhook') || matched.startsWith('/app/webhook'))) {
     req.url = matched;
   }
   next();
@@ -1259,9 +1259,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     }
   };
 
-  app.all("/webhook", handlePixupWebhook);
-  app.all("/api/webhook", handlePixupWebhook);
-  app.all("/api/webhooks/pixup", handlePixupWebhook);
+  app.all(["/webhook", "/api/webhook", "/api/webhooks/pixup", "/app/webhook"], handlePixupWebhook);
 
   app.post("/api/notifications/deposit-approved", async (req, res) => {
     try {
