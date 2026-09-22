@@ -90,6 +90,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
   }, []);
 
+  // Periodic and on-focus background sync with Supabase
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let isMounted = true;
+    const syncWithSupabase = async () => {
+      try {
+        const response = await fetch(`/api/users/${user.id}`);
+        const fresh = await response.json();
+        
+        if (fresh && isMounted && !fresh.error) {
+          if (
+            fresh.balance !== user.balance ||
+            fresh.earnings !== user.earnings ||
+            fresh.role !== user.role ||
+            fresh.referrals !== user.referrals
+          ) {
+            setUser(fresh);
+          }
+        }
+      } catch (err) {
+        // silent background sync failure
+      }
+    };
+
+    const interval = setInterval(syncWithSupabase, 6000);
+    const onFocus = () => syncWithSupabase();
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [user?.id, user?.balance, user?.earnings, user?.role, user?.referrals]);
+
   const login = async (phoneOrEmail: string, pass: string) => {
     const cleanedInput = phoneOrEmail.includes('@') ? phoneOrEmail : phoneOrEmail.replace(/\D/g, '');
     const users = await db.getUsers();

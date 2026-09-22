@@ -333,6 +333,8 @@ class LocalDB {
             const localUser = cachedMap.get(u.id);
             return {
               ...u,
+              balance: Number(u.balance !== undefined && u.balance !== null ? u.balance : (localUser?.balance || 0)),
+              earnings: Number(u.earnings !== undefined && u.earnings !== null ? u.earnings : (localUser?.earnings || 0)),
               unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
               referralCounted: !!u.referralCounted,
               lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
@@ -357,6 +359,8 @@ class LocalDB {
             const localUser = cachedMap.get(u.id);
             return {
               ...u,
+              balance: Number(u.balance !== undefined && u.balance !== null ? u.balance : (localUser?.balance || 0)),
+              earnings: Number(u.earnings !== undefined && u.earnings !== null ? u.earnings : (localUser?.earnings || 0)),
               lastLoginBonusDate: u.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
             };
           });
@@ -371,6 +375,43 @@ class LocalDB {
   }
 
   async getUser(id: string): Promise<User | undefined> {
+    // 1. First priority: Direct query to Supabase for this exact user
+    console.log("isSupabaseConfigured:", isSupabaseConfigured);
+    if (isSupabaseConfigured) {
+      try {
+        console.log("Attempting direct Supabase fetch for user:", id);
+        const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
+        if (error) {
+           console.error("Supabase getUser error:", error);
+        }
+        if (!error && data) {
+          console.log("Direct Supabase fetch successful for user:", id, data);
+          const cached = this.getStorageItem<User[]>('lt_users', []);
+          const localUser = cached.find(cu => cu.id === id);
+          const formatted: User = {
+            ...localUser,
+            ...data,
+            balance: Number(data.balance !== undefined && data.balance !== null ? data.balance : (localUser?.balance || 0)),
+            earnings: Number(data.earnings !== undefined && data.earnings !== null ? data.earnings : (localUser?.earnings || 0)),
+            unlockFirstWithdrawal: !!data.unlockFirstWithdrawal,
+            referralCounted: !!data.referralCounted,
+            lastLoginBonusDate: data.lastLoginBonusDate || localUser?.lastLoginBonusDate || undefined
+          };
+
+          const idx = cached.findIndex(u => u.id === id);
+          if (idx !== -1) {
+            cached[idx] = formatted;
+          } else {
+            cached.push(formatted);
+          }
+          this.setStorageItem('lt_users', cached);
+          return formatted;
+        }
+      } catch (e) {
+        console.warn("Direct Supabase getUser fetch failed, falling back to cache/API:", e);
+      }
+    }
+
     const users = await this.getUsers();
     return users.find(u => u.id === id);
   }

@@ -59,12 +59,32 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       res.json((data || []).map((u: any) => ({
         ...u,
+        balance: Number(u.balance ?? 0),
+        earnings: Number(u.earnings ?? 0),
         unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
         referralCounted: !!u.referralCounted
       })));
     } catch (error: any) {
       console.log("Supabase offline/unreachable for users:", error.message || error);
       res.json([]);
+    }
+  });
+
+  app.get("/api/users/:id", async (req, res) => {
+    try {
+      const { data, error } = await supabase.from("users").select("*").eq("id", req.params.id).maybeSingle();
+      if (error || !data) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json({
+        ...data,
+        balance: Number(data.balance ?? 0),
+        earnings: Number(data.earnings ?? 0),
+        unlockFirstWithdrawal: !!data.unlockFirstWithdrawal,
+        referralCounted: !!data.referralCounted
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
