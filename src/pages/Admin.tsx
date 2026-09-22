@@ -46,6 +46,7 @@ export function Admin() {
   });
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isTestingPixup, setIsTestingPixup] = useState(false);
   const [cacheStats, setCacheStats] = useState<{ totalImages: number; totalAudio: number; estimatedSizeMB: string }>({
     totalImages: 0,
     totalAudio: 0,
@@ -278,10 +279,43 @@ export function Admin() {
     if (settings) {
       try {
         await db.saveSettings(settings);
-        toast.success('Configurações salvas!');
+        toast.success('Configurações salvas com sucesso!');
       } catch (error) {
         toast.error('Erro ao salvar configurações');
       }
+    }
+  };
+
+  const handleTestPixupConnection = async () => {
+    const cId = (settings?.pixupClientId || 'adrianoledio_f27410f412960abf').trim();
+    const cSecret = (settings?.pixupClientSecret || '').trim();
+
+    if (!cSecret) {
+      toast.error('Preencha o Client Secret PixUP antes de testar a conexão.');
+      return;
+    }
+
+    setIsTestingPixup(true);
+    try {
+      const basicAuth = btoa(`${cId}:${cSecret}`);
+      const res = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${basicAuth}`,
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await res.json();
+      if (res.ok && (data.access_token || data.token || data.data?.access_token)) {
+        toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
+      } else {
+        const msg = data.error?.message || data.message || data.error || 'Credenciais inválidas ou recusadas pela PixUP.';
+        toast.error(`Falha PixUP: ${msg}`);
+      }
+    } catch (err: any) {
+      toast.error('Erro ao conectar com PixUP: ' + (err.message || 'Verifique a conexão'));
+    } finally {
+      setIsTestingPixup(false);
     }
   };
 
@@ -2061,6 +2095,31 @@ export function Admin() {
                       }`}
                     />
                   </div>
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={handleTestPixupConnection}
+                    disabled={isTestingPixup}
+                    className={`flex-1 py-2.5 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border ${
+                      theme === 'dark'
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                        : 'border-emerald-600/30 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <Zap size={12} className={isTestingPixup ? 'animate-spin' : ''} />
+                    {isTestingPixup ? 'Testando Conexão...' : 'Testar Conexão PixUP'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSettingsSave}
+                    className="flex-1 py-2.5 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-600/20"
+                  >
+                    <Save size={12} />
+                    Salvar Credenciais PixUP
+                  </button>
                 </div>
               </div>
             </div>
