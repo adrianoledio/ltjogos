@@ -192,7 +192,7 @@ export function Wallet() {
 
         let pixSuccess = false;
 
-        // 1. Try server-side API first
+        // 1. Send request through server-side API (safe from browser CORS)
         try {
           const response = await fetch('/api/payments/pix', {
             method: 'POST',
@@ -210,101 +210,25 @@ export function Wallet() {
             })
           });
 
-          if (response.ok) {
-            const data = await response.json().catch(() => null);
-            if (data?.success && data.qrCode) {
-              setQrCode(data.qrCode);
-              setQrCodeBase64(data.qrCodeBase64 || '');
-              setActiveTxId(data.transactionId);
-              setShowQr(true);
-              setTransactions(await db.getTransactions());
-              toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
-              pixSuccess = true;
-            }
+          const data = await response.json().catch(() => null);
+
+          if (response.ok && data?.success && data.qrCode) {
+            setQrCode(data.qrCode);
+            setQrCodeBase64(data.qrCodeBase64 || '');
+            setActiveTxId(data.transactionId);
+            setShowQr(true);
+            setTransactions(await db.getTransactions());
+            toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
+            pixSuccess = true;
+          } else {
+            const errMsg = data?.error || data?.message || (response.status ? `Erro ${response.status} da PixUP.` : 'Falha ao gerar PIX.');
+            console.error("PixUP server response:", errMsg, data);
+            toast.error(errMsg);
+            pixSuccess = true;
           }
-        } catch (apiErr) {
-          console.warn("API /api/payments/pix failed, trying direct PixUP client-side fallback:", apiErr);
-        }
-
-        // 2. Client-side direct PixUP fallback if server route failed
-        if (!pixSuccess) {
-          try {
-            let authToken = pixupToken;
-            if (!authToken && pixupClientId && pixupClientSecret) {
-              const basicAuth = btoa(`${pixupClientId}:${pixupClientSecret}`);
-              const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
-                method: "POST",
-                headers: {
-                  "Authorization": `Basic ${basicAuth}`,
-                  "Content-Type": "application/json"
-                }
-              });
-              const authData = await authRes.json().catch(() => ({}));
-              authToken = authData.access_token || authData.token || authData.data?.access_token;
-            }
-
-            if (!authToken) {
-              throw new Error("Não foi possível autenticar com a PixUP. Verifique as credenciais no Admin.");
-            }
-
-            const txId = 'tx_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-            const rndCPF = Array(11).fill(0).map((_, i) => (i < 9 ? Math.floor(Math.random() * 9) : 1)).join('');
-
-            const cashinRes = await fetch("https://api.pixupbr.com/v2/transactions/cashin", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${authToken.trim()}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                amount: Number(val.toFixed(2)),
-                currency: "BRL",
-                external_id: txId,
-                postback_url: pixupPostbackUrl,
-                payer: {
-                  name: user.name || "Jogador LT Jogos",
-                  email: user.email || "usuario@ltjogos.com",
-                  document: rndCPF
-                }
-              })
-            });
-
-            const cashinData = await cashinRes.json().catch(() => ({}));
-            const info = cashinData.data || cashinData;
-            const qrCodeStr = info.payment_info?.qrcode || info.qrcode || info.payment_info?.qr_code || info.qr_code || "";
-            const qrBase64 = info.payment_info?.qrcode_base64 || info.payment_info?.qr_code_base64 || info.qrcode_base64 || "";
-
-            if (qrCodeStr) {
-              await db.addTransaction({
-                userId: user.id,
-                amount: val,
-                type: 'deposit',
-                status: 'pending',
-                metadata: {
-                  pixupTransactionId: info.transaction_id || info.id || cashinData.request_id,
-                  transactionId: txId,
-                  bonus: bonusVal,
-                  qrCode: qrCodeStr,
-                  qrCodeBase64: qrBase64,
-                  userPhone: user.phone || ''
-                }
-              });
-
-              setQrCode(qrCodeStr);
-              setQrCodeBase64(qrBase64);
-              setActiveTxId(txId);
-              setShowQr(true);
-              setTransactions(await db.getTransactions());
-              toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
-              pixSuccess = true;
-            } else {
-              const errMsg = cashinData.message || cashinData.error || 'Erro ao gerar QR Code na PixUP.';
-              toast.error(errMsg);
-            }
-          } catch (directErr: any) {
-            console.error("Direct fallback failed:", directErr);
-            toast.error(directErr.message || 'Erro ao gerar PIX com a PixUP.');
-          }
+        } catch (apiErr: any) {
+          console.error("API /api/payments/pix request error:", apiErr);
+          toast.error(apiErr.message || "Erro de conexão com o servidor.");
         }
 
       } catch (error: any) {

@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
+const DEFAULT_SUPABASE_URL = "https://mtodxdlvpsldxwtvtttk.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10b2R4ZGx2cHNsZHh3dHZ0dHRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMTg5NjUsImV4cCI6MjEwNTU5NDk2NX0.By1JUfX28vpMSZS1fbItofVcq3X5MoFeT2m_QDhxH_E";
+
 export function getValidSupabaseCredentials() {
   let url = "";
   let key = "";
@@ -7,7 +10,7 @@ export function getValidSupabaseCredentials() {
   // Server-side / Node / Serverless environment
   if (typeof process !== "undefined" && process?.env) {
     url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-    key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+    key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
   }
 
   // Client-side Vite environment
@@ -21,6 +24,12 @@ export function getValidSupabaseCredentials() {
     } catch (e) {
       // Ignore
     }
+  }
+
+  // Fallback to project defaults if not provided via environment
+  if (!url || !key) {
+    url = DEFAULT_SUPABASE_URL;
+    key = DEFAULT_SUPABASE_ANON_KEY;
   }
 
   // Auto-recover if the user accidentally pasted the JWT into VITE_SUPABASE_URL

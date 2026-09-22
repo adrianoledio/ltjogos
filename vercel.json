@@ -1,8 +1,8 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/webhook(.*)", "destination": "/api" },
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/webhook(.*)", "destination": "/api/index" },
     { "source": "/((?!api|webhook).*)", "destination": "/index.html" }
   ]
 }

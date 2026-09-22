@@ -314,19 +314,16 @@ export function Admin() {
           clientSecret: cSecret
         })
       });
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data && data.success) {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        if (data.success) {
           toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
-          testedSuccessfully = true;
-          setIsTestingPixup(false);
-          return;
-        } else if (data && data.error) {
-          toast.error(`Falha PixUP: ${data.error}`);
-          testedSuccessfully = true;
-          setIsTestingPixup(false);
-          return;
+        } else {
+          toast.error(`Falha PixUP: ${data.error || 'Credenciais inválidas ou recusadas'}`);
         }
+        testedSuccessfully = true;
+        setIsTestingPixup(false);
+        return;
       }
     } catch (err: any) {
       console.warn("API test route error, attempting direct PixUP test:", err);
