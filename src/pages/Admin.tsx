@@ -833,7 +833,9 @@ export function Admin() {
                                 if (window.confirm(`Tem certeza que deseja deletar o usuário ${u.name}?`)) {
                                   try {
                                     await db.deleteUser(u.id);
-                                    setUsers(users.filter(user => user.id !== u.id));
+                                    // Fetch latest list from DB instead of just filtering local state
+                                    const updatedUsers = await db.getUsers();
+                                    setUsers(updatedUsers);
                                     toast.success(`Usuário ${u.name} deletado com sucesso!`);
                                   } catch (error) {
                                     toast.error(`Erro ao deletar usuário ${u.name}`);

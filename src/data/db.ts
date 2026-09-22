@@ -477,16 +477,25 @@ class LocalDB {
     const filtered = users.filter(u => u.id !== userId);
     this.setStorageItem('lt_users', filtered);
 
+    // Attempt API deletion first (preferred as it runs with server-side privileges)
+    try {
+      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        console.error("API delete failed with status:", res.status);
+      }
+    } catch (e) {
+      console.error("API delete failed:", e);
+    }
+
+    // Keep direct Supabase call as fallback, but add logging
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('transactions').delete().eq('userId', userId);
+        const { error: tError } = await supabase.from('transactions').delete().eq('userId', userId);
+        if (tError) console.error("Transactions delete error:", tError);
+        const { error: uError } = await supabase.from('users').delete().eq('id', userId);
+        if (uError) console.error("User delete error:", uError);
       } catch (e) {
-        // quiet
-      }
-      try {
-        await supabase.from('users').delete().eq('id', userId);
-      } catch (e) {
-        // quiet
+        console.error("Supabase direct delete failed:", e);
       }
     }
 
