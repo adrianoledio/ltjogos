@@ -300,6 +300,9 @@ export function Admin() {
     }
 
     setIsTestingPixup(true);
+    let testedSuccessfully = false;
+
+    // 1. Try server-side route first
     try {
       const res = await fetch("/api/pixup/test", {
         method: "POST",
@@ -311,18 +314,47 @@ export function Admin() {
           clientSecret: cSecret
         })
       });
-      const data = await res.json().catch(() => ({ success: false, error: "Resposta inesperada do servidor" }));
-      if (data && data.success) {
-        toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
-      } else {
-        const msg = data?.error || 'Credenciais inválidas ou recusadas pela PixUP.';
-        toast.error(`Falha PixUP: ${msg}`);
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data && data.success) {
+          toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
+          testedSuccessfully = true;
+          setIsTestingPixup(false);
+          return;
+        } else if (data && data.error) {
+          toast.error(`Falha PixUP: ${data.error}`);
+          testedSuccessfully = true;
+          setIsTestingPixup(false);
+          return;
+        }
       }
     } catch (err: any) {
-      toast.error('Erro ao conectar com PixUP: ' + (err.message || 'Verifique a conexão'));
-    } finally {
-      setIsTestingPixup(false);
+      console.warn("API test route error, attempting direct PixUP test:", err);
     }
+
+    // 2. Direct client fallback test if API test route failed
+    if (!testedSuccessfully) {
+      try {
+        const basicAuth = btoa(`${cId}:${cSecret}`);
+        const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${basicAuth}`,
+            "Content-Type": "application/json"
+          }
+        });
+        const authData = await authRes.json().catch(() => ({}));
+        if (authRes.ok && (authData.access_token || authData.token || authData.data?.access_token)) {
+          toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
+        } else {
+          const msg = authData.message || authData.error || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
+          toast.error(`Falha PixUP: ${msg}`);
+        }
+      } catch (directErr: any) {
+        toast.error('Erro ao conectar com PixUP: ' + (directErr.message || 'Verifique suas credenciais e conexão'));
+      }
+    }
+    setIsTestingPixup(false);
   };
 
   const handleApproveDeposit = async (tx: Transaction) => {
