@@ -392,7 +392,7 @@ export function Wallet() {
           const faqs = [
             {
               q: "Como funciona o bônus de depósito?",
-              a: "Ao depositar qualquer valor a partir de R$ 20, você recebe automaticamente +50% de bônus na hora! Em depósitos de R$ 200 ou mais, seu bônus é turbinado para +75%!"
+              a: "Ao depositar qualquer valor a partir de R$ 10, você recebe automaticamente +50% de bônus na hora! Em depósitos de R$ 200 ou mais, seu bônus é turbinado para +75%!"
             },
             {
               q: "O saldo de bônus é liberado imediatamente?",

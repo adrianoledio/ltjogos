@@ -33,7 +33,7 @@ const TOUR_STEPS: TourStep[] = [
     badge: '1. CARTEIRA & PIX',
     title: 'Sua Carteira e Saldo',
     description: 'Aqui você visualiza seu saldo em tempo real. Clique a qualquer momento para abrir a carteira, depositar via PIX com aprovação instantânea e receber até +75% de bônus promocional!',
-    tip: 'Depósitos a partir de R$ 20 ganham +50% de bônus, e a partir de R$ 200 ganham +75% VIP.',
+    tip: 'Depósitos a partir de R$ 10 ganham +50% de bônus, e a partir de R$ 200 ganham +75% VIP.',
     position: 'bottom'
   },
   {
@@ -274,7 +274,7 @@ export function HomeTourModal() {
                           <span>Depósito Instantâneo via PIX</span>
                         </div>
                         <p className="text-[11px] text-white/70 leading-relaxed">
-                          Deposite a partir de <strong>R$ 20</strong> através do QR Code ou chave Copia & Cola oficial do PIX. O saldo é creditado no mesmo segundo na sua conta.
+                          Deposite a partir de <strong>R$ 10</strong> através do QR Code ou chave Copia & Cola oficial do PIX. O saldo é creditado no mesmo segundo na sua conta.
                         </p>
                       </div>
 
@@ -338,7 +338,7 @@ export function HomeTourModal() {
                           </span>
                         </div>
                         <p className="text-[11px] text-white/70 leading-relaxed">
-                          Depósitos a partir de R$ 20 ganham <strong>+50% extras</strong> na banca. Depósitos acima de R$ 200 recebem <strong>+75% VIP</strong> na hora!
+                          Depósitos a partir de R$ 10 ganham <strong>+50% extras</strong> na banca. Depósitos acima de R$ 200 recebem <strong>+75% VIP</strong> na hora!
                         </p>
                       </div>
 

@@ -83,7 +83,7 @@ export function Landing() {
               <h3 className="text-sm font-black text-white uppercase tracking-widest">Bônus de +50% a +75%</h3>
             </div>
             <p className="text-xs text-white/70 leading-relaxed font-medium">
-              Deposite a partir de <strong className="text-white">R$ 20</strong> e receba bônus instantâneo! Depósitos acima de <strong className="text-white">R$ 200</strong> ganham <strong className="text-brand-primary font-black">+75%</strong> extras para jogar!
+              Deposite a partir de <strong className="text-white">R$ 10</strong> e receba bônus instantâneo! Depósitos acima de <strong className="text-white">R$ 200</strong> ganham <strong className="text-brand-primary font-black">+75%</strong> extras para jogar!
             </p>
             <div className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 w-max px-3 py-1 rounded-lg uppercase tracking-widest">
               ATIVO AGORA
