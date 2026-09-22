@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendDepositNotificationEmail } from "../lib/sendDepositEmail";
-import { getValidSupabaseCredentials } from "../../src/lib/supabase";
 
 export default async function handler(req: any, res: any) {
   try {
@@ -32,9 +31,10 @@ export default async function handler(req: any, res: any) {
       status === "success";
 
     if (isConfirmed && (externalId || pixupTxId)) {
-      const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+      const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-      if (supabaseUrl && supabaseKey) {
+      if (supabaseUrl && supabaseKey && supabaseUrl.startsWith("http")) {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();

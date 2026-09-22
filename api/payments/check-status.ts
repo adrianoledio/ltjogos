@@ -1,6 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendDepositNotificationEmail } from "../lib/sendDepositEmail";
-import { getValidSupabaseCredentials } from "../../src/lib/supabase";
+
+function getSupabaseEnv() {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  const key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  return { url, key };
+}
 
 export async function approvePendingTx(supabase: any, tx: any, settings: any) {
   if (tx.status === 'completed') return true;
@@ -52,7 +57,7 @@ export async function approvePendingTx(supabase: any, tx: any, settings: any) {
 }
 
 export async function syncAllPendingDeposits() {
-  const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseEnv();
 
   if (!supabaseUrl || !supabaseKey) {
     return { approvedCount: 0, error: "Supabase not configured" };
@@ -128,7 +133,7 @@ export async function verifyAndApprovePayment(paymentId: string | number, txId?:
   // Trigger sync of pending deposits
   await syncAllPendingDeposits().catch(e => console.warn("syncAllPendingDeposits error:", e));
 
-  const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseEnv();
 
   if (!supabaseUrl || !supabaseKey) {
     return { approved: false, reason: "Supabase not configured" };
