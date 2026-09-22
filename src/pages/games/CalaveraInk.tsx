@@ -9,6 +9,7 @@ import { SlotService } from '../../services/slotService';
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star, ThumbsUp } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { GameAlertModal } from '../../components/GameAlertModal';
 import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 const coverImg = '/images/calavera_ink_cover_1784495373476.jpg';
 
@@ -479,6 +480,9 @@ export function CalaveraInk() {
   const [totalFreeSpinWin, setTotalFreeSpinWin] = useState(0);
   const [freeSpinsActive, setFreeSpinsActive] = useState(false);
 
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; message: string; type: 'insufficient_balance' | 'info' | 'error' } | null>(null);
+
   // Modals
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showBetSelectionModal, setShowBetSelectionModal] = useState(false);
@@ -690,7 +694,11 @@ export function CalaveraInk() {
     const cost = freeSpinsActive ? 0 : activeBet;
     if (!freeSpinsActive && (!user || user.balance < cost)) {
       setAutoPlay(false);
-      alert('Saldo insuficiente para realizar a aposta.');
+      setAlertModal({
+        isOpen: true,
+        message: 'Saldo insuficiente para realizar a aposta.',
+        type: 'insufficient_balance'
+      });
       return;
     }
 
@@ -1225,6 +1233,13 @@ export function CalaveraInk() {
         isSpinning={isSpinning || freeSpinsActive}
         onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
+      />
+
+      <GameAlertModal
+        isOpen={!!alertModal?.isOpen}
+        onClose={() => setAlertModal(null)}
+        message={alertModal?.message || ''}
+        type={alertModal?.type || 'info'}
       />
     </div>
   );

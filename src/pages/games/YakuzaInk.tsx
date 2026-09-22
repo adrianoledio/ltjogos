@@ -9,6 +9,7 @@ import { SlotService, YakuzaInkSpinResponse } from '../../services/slotService';
 import { ArrowLeft, Info, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Flame } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { GameAlertModal } from '../../components/GameAlertModal';
 import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 // Symbol structures
@@ -293,6 +294,9 @@ export function YakuzaInk() {
   const [showInfo, setShowInfo] = useState(false);
   const autoPlayRef = useRef(autoPlay);
 
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; message: string; type: 'insufficient_balance' | 'info' | 'error' } | null>(null);
+
   useEffect(() => {
     autoPlayRef.current = autoPlay;
   }, [autoPlay]);
@@ -407,7 +411,11 @@ export function YakuzaInk() {
     
     if (!user || user.balance < totalBet) {
       setAutoPlay(false);
-      alert('Saldo insuficiente para realizar a aposta.');
+      setAlertModal({
+        isOpen: true,
+        message: 'Saldo insuficiente para realizar a aposta.',
+        type: 'insufficient_balance'
+      });
       return;
     }
 
@@ -959,6 +967,13 @@ export function YakuzaInk() {
         isSpinning={isSpinning}
         onConfirm={() => window.location.href = '/app'}
         onCancel={() => setShowExitModal(false)}
+      />
+
+      <GameAlertModal
+        isOpen={!!alertModal?.isOpen}
+        onClose={() => setAlertModal(null)}
+        message={alertModal?.message || ''}
+        type={alertModal?.type || 'info'}
       />
     </div>
   );

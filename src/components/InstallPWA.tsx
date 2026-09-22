@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, X, Check, Share } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -43,7 +44,7 @@ export function InstallPWAButton({ className = '' }: { className?: string }) {
 
   const handleInstallClick = async () => {
     if (isInstalled) {
-      alert('O aplicativo LT Jogos já está instalado no seu dispositivo!');
+      toast.success('O aplicativo LT Jogos já está instalado no seu dispositivo!');
       return;
     }
 
@@ -58,7 +59,7 @@ export function InstallPWAButton({ className = '' }: { className?: string }) {
       setShowIOSModal(true);
     } else {
       // Fallback prompt guidance
-      alert('Para instalar o aplicativo:\n\n1. Abra o menu do seu navegador (⋮ ou Safari)\n2. Selecione "Instalar Aplicativo" ou "Adicionar à Tela de Início".');
+      toast.info('Para instalar: clique no menu de opções do navegador (⋮ ou Safari) e selecione "Adicionar à Tela de Início".');
     }
   };
 

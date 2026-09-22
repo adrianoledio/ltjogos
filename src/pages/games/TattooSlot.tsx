@@ -9,6 +9,7 @@ import { SlotService, TattooSlotSpinResponse } from '../../services/slotService'
 import { ArrowLeft, Info, HelpCircle, Coins, Zap, Minus, Plus, RefreshCw, Volume2, VolumeX, Menu, X, Star } from 'lucide-react';
 import { GameLoader } from '../../components/GameLoader';
 import { ConfirmExitModal } from '../../components/ConfirmExitModal';
+import { GameAlertModal } from '../../components/GameAlertModal';
 import { triggerWinConfetti, triggerBigWinConfetti } from '../../lib/confetti';
 
 // Symbols definitions
@@ -596,6 +597,9 @@ export function TattooSlot() {
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
 
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState<{ isOpen: boolean; message: string; type: 'insufficient_balance' | 'info' | 'error' } | null>(null);
+
   // Reference to monitor auto-spins
   const autoPlayRef = useRef(autoPlay);
   const autoSpinsLeftRef = useRef(autoSpinsLeft);
@@ -823,7 +827,11 @@ export function TattooSlot() {
     const cost = freeSpinsActive ? 0 : activeBet;
     if (!freeSpinsActive && (!user || user.balance < cost)) {
       setAutoPlay(false);
-      alert('Saldo insuficiente para realizar a aposta.');
+      setAlertModal({
+        isOpen: true,
+        message: 'Saldo insuficiente para realizar a aposta.',
+        type: 'insufficient_balance'
+      });
       return;
     }
 
@@ -929,7 +937,11 @@ export function TattooSlot() {
     const cost = baseBet * (superMode ? 300 : 100);
 
     if (!user || user.balance < cost) {
-      alert('Saldo insuficiente para comprar rodadas grátis.');
+      setAlertModal({
+        isOpen: true,
+        message: 'Saldo insuficiente para comprar rodadas grátis.',
+        type: 'insufficient_balance'
+      });
       return;
     }
 
@@ -1560,6 +1572,12 @@ export function TattooSlot() {
         onCancel={() => setShowExitModal(false)}
       />
 
+      <GameAlertModal
+        isOpen={!!alertModal?.isOpen}
+        onClose={() => setAlertModal(null)}
+        message={alertModal?.message || ''}
+        type={alertModal?.type || 'info'}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { InstallPWAButton } from '../InstallPWA';
+import { toast } from 'sonner';
 import { 
   Wallet, 
   User as UserIcon, 
@@ -300,7 +301,7 @@ export function Topbar() {
                   </div>
                   <p className="text-[10px] text-text-main/70 leading-normal mb-2">Suba de nível jogando, ganhe cashback semanal e resgate bônus exclusivos.</p>
                   <button 
-                    onClick={() => alert('Em breve: Sistema de Fidelidade VIP com vantagens especiais!')}
+                    onClick={() => toast.info('Em breve: Sistema de Fidelidade VIP com vantagens especiais!')}
                     className="w-full py-1 text-center bg-amber-400 hover:bg-amber-300 text-black font-black text-[9px] uppercase tracking-wider rounded-lg transition-all"
                   >
                     Conhecer Benefícios
