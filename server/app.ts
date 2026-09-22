@@ -91,7 +91,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.post("/api/users", async (req, res) => {
     console.log("POST /api/users called with body:", JSON.stringify(req.body));
     try {
-      const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, lastLoginBonusDate, referrals, unlockFirstWithdrawal, referralLink, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
+      const { id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, lastLoginBonusDate, referrals, unlockFirstWithdrawal, referralLink, referralCode, withdrawalsCount, referredBy, referralCounted, phone } = req.body;
       console.log("Saving user:", id);
       const payload: any = {
         id, name, email, password, role, balance, earnings, createdAt, dailyPrizeTotal, lastPrizeDate, 
@@ -99,6 +99,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         referrals: referrals || 0, 
         unlockFirstWithdrawal: unlockFirstWithdrawal ? true : false, 
         referralLink: referralLink || '', 
+        referralCode: req.body.referralCode || null,
         withdrawalsCount: withdrawalsCount || 0, 
         referredBy: referredBy || null, 
         referralCounted: referralCounted ? true : false,
