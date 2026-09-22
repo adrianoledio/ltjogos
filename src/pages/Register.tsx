@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export function Register() {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +23,7 @@ export function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const success = await register(name, phone, password);
+      const success = await register(name, email, phone, password);
       if (success) {
         navigate('/app/wallet');
       } else {
@@ -54,7 +55,7 @@ export function Register() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label className="block text-[9px] font-black text-white/40 uppercase tracking-widest ml-1">Nome Completo</label>
               <input
@@ -63,6 +64,17 @@ export function Register() {
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-black/50 border border-white/10 rounded-2xl p-4 text-sm font-bold text-white focus:outline-none focus:border-brand-primary transition-all"
                 placeholder="Ex: João Silva"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[9px] font-black text-white/40 uppercase tracking-widest ml-1">E-mail</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-black/50 border border-white/10 rounded-2xl p-4 text-sm font-bold text-white focus:outline-none focus:border-brand-primary transition-all"
+                placeholder="seu.email@exemplo.com"
                 required
               />
             </div>

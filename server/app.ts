@@ -630,7 +630,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   let pixupCachedToken: string | null = null;
   let pixupTokenExpiresAt: number = 0;
 
-  async function getPixupAccessToken(clientId: string, clientSecret: string): Promise<string> {
+  async function getPixupAccessToken(clientId: string, clientSecret: string, forceRefresh: boolean = false): Promise<string> {
     const cId = (clientId || '').trim();
     const cSecret = (clientSecret || '').trim();
     if (!cId || !cSecret) {
@@ -638,12 +638,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     }
 
     const now = Date.now();
-    if (pixupCachedToken && pixupTokenExpiresAt > now + 30000) {
+    if (!forceRefresh && pixupCachedToken && pixupTokenExpiresAt > now + 30000) {
       return pixupCachedToken;
     }
 
     const basicAuth = Buffer.from(`${cId}:${cSecret}`).toString('base64');
-    console.log(`[PixUP Auth] Gerando token para Client ID: ${cId.substring(0, 10)}...`);
+    console.log(`[PixUP Auth] Gerando token para Client ID: ${cId.substring(0, 10)}... (forceRefresh: ${forceRefresh})`);
 
     const authRes = await fetch("https://api.pixupbr.com/v2/oauth/token", {
       method: "POST",
@@ -653,9 +653,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
     });
 
-    const authData: any = await authRes.json();
+    const responseText = await authRes.text();
+    let authData: any = {};
+    try {
+      authData = JSON.parse(responseText);
+    } catch (e) {
+      authData = { message: responseText };
+    }
+
     if (!authRes.ok || authData.success === false) {
-      const errDetail = authData.error?.message || authData.message || authData.error || "Falha na autenticação da PixUP. Verifique Client ID e Client Secret.";
+      const errDetail = authData.error?.message || (typeof authData.error === 'string' ? authData.error : null) || authData.message || `HTTP ${authRes.status}: Falha na autenticação da PixUP. Verifique Client ID e Client Secret.`;
       console.error("[PixUP Auth] Erro:", authRes.status, authData);
       throw new Error(`Erro PixUP: ${errDetail}`);
     }
@@ -714,7 +721,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
 
       if (!authRes.ok || authData.success === false) {
-        const errDetail = authData.error?.message || authData.message || authData.error || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
+        const errDetail = authData.error?.message || (typeof authData.error === 'string' ? authData.error : null) || authData.message || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
         return res.json({ success: false, error: errDetail });
       }
 
@@ -768,7 +775,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
               if (!clientId) clientId = (settings.pixupClientId || "").trim();
               if (!clientSecret) clientSecret = (settings.pixupClientSecret || "").trim();
               if (settings.pixupPostbackUrl) postback_url = settings.pixupPostbackUrl.trim();
-              if (!directToken) directToken = (settings.pixupToken || settings.mpAccessToken || "").trim();
+              if (!directToken && settings.pixupToken) directToken = settings.pixupToken.trim();
             }
           }
         } catch (e) {
@@ -780,15 +787,29 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         clientId = "adrianoledio_f27410f412960abf";
       }
 
-      let authToken = directToken;
-      if (!authToken && clientId && clientSecret) {
-        authToken = await getPixupAccessToken(clientId, clientSecret);
+      // Prioritize OAuth generation if Client Secret is provided
+      let authToken = "";
+      if (clientId && clientSecret) {
+        try {
+          authToken = await getPixupAccessToken(clientId, clientSecret);
+        } catch (authErr: any) {
+          console.warn("[PixUP] Falha ao obter token OAuth com Client Secret:", authErr.message);
+          if (directToken) {
+            authToken = directToken;
+          } else {
+            return res.status(400).json({
+              error: authErr.message || "Falha na autenticação da PixUP. Verifique seu Client ID e Client Secret no painel Admin."
+            });
+          }
+        }
+      } else if (directToken) {
+        authToken = directToken;
       }
       
       if (!authToken) {
         console.error("Credenciais PixUP não configuradas.");
         return res.status(400).json({
-          error: "Credenciais PixUP não configuradas. Adicione seu Client Secret no painel Admin (Configurações > Gateway)."
+          error: "Credenciais da PixUP não configuradas. Adicione seu Client Secret no painel Admin (Configurações > Gateway)."
         });
       }
 
@@ -824,7 +845,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
       console.log("[PixUP] Chamando cashin:", JSON.stringify(pixupPayload));
       
-      const pixupResponse = await fetch("https://api.pixupbr.com/v2/transactions/cashin", {
+      let pixupResponse = await fetch("https://api.pixupbr.com/v2/transactions/cashin", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -833,15 +854,48 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         body: JSON.stringify(pixupPayload)
       });
 
-      const pixupData: any = await pixupResponse.json();
+      let pixupData: any = await pixupResponse.json().catch(() => ({}));
       console.log("[PixUP] Resposta da API:", pixupResponse.status, JSON.stringify(pixupData));
+
+      // Retry once if token was expired or invalid
+      if ((!pixupResponse.ok || pixupData?.success === false) && 
+          (pixupResponse.status === 401 || pixupData?.error?.code === 'INVALID_TOKEN') && 
+          clientId && clientSecret) {
+        console.log("[PixUP] Token expirado ou inválido (401). Renovando token OAuth e tentando novamente...");
+        pixupCachedToken = null;
+        try {
+          const freshToken = await getPixupAccessToken(clientId, clientSecret, true);
+          pixupResponse = await fetch("https://api.pixupbr.com/v2/transactions/cashin", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${freshToken.trim()}`
+            },
+            body: JSON.stringify(pixupPayload)
+          });
+          pixupData = await pixupResponse.json().catch(() => ({}));
+          console.log("[PixUP Retry] Resposta da API após renovação de token:", pixupResponse.status, JSON.stringify(pixupData));
+        } catch (retryErr: any) {
+          console.warn("[PixUP] Erro no retry com novo token:", retryErr.message);
+        }
+      }
 
       if (!pixupResponse.ok || pixupData.success === false) {
         console.error("Erro na PixUP:", pixupData);
-        const detail = pixupData.message ||
-          pixupData.error ||
-          pixupData.details?.message ||
-          (typeof pixupData === 'string' ? pixupData : "Erro ao gerar PIX na PixUP.");
+        let detail = "Erro ao gerar PIX na PixUP.";
+        if (typeof pixupData.error === 'string') {
+          detail = pixupData.error;
+        } else if (pixupData.error?.message && typeof pixupData.error.message === 'string') {
+          if (pixupData.error.code === 'INVALID_TOKEN' || pixupData.error.code === 'INVALID_CREDENTIALS') {
+            detail = "Credenciais ou token da PixUP inválidos. Acesse o Painel Admin > Gateway e verifique seu Client ID e Client Secret.";
+          } else {
+            detail = pixupData.error.message;
+          }
+        } else if (typeof pixupData.message === 'string') {
+          detail = pixupData.message;
+        } else if (pixupData.details?.message && typeof pixupData.details.message === 'string') {
+          detail = pixupData.details.message;
+        }
         return res.status(pixupResponse.status >= 400 ? pixupResponse.status : 400).json({ error: detail, details: pixupData });
       }
 
@@ -860,6 +914,15 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       };
 
       try {
+        if (userId) {
+          await supabase.from("users").upsert({
+            id: userId,
+            name: payerName,
+            email: payerEmail,
+            role: "player"
+          }, { onConflict: "id", ignoreDuplicates: true });
+        }
+
         await supabase.from("transactions").insert({
           id: txId,
           userId,

@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (phoneOrEmail: string, pass: string) => Promise<boolean>;
-  register: (name: string, phone: string, pass: string) => Promise<boolean>;
+  register: (name: string, email: string, phone: string, pass: string) => Promise<boolean>;
   logout: () => void;
   updateBalance: (amount: number, type: 'deposit' | 'withdraw' | 'bet' | 'win', gameId?: string, metadata?: any) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -121,10 +121,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
-  const register = async (name: string, phone: string, pass: string) => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!cleanPhone) {
-      throw new Error('Número de telefone inválido.');
+  const register = async (name: string, email: string, phone: string, pass: string) => {
+    const cleanName = (name || '').trim();
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+
+    if (!cleanName) {
+      throw new Error('Por favor, informe seu nome completo.');
+    }
+
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      throw new Error('Por favor, informe um endereço de e-mail válido.');
+    }
+
+    if (!cleanPhone || cleanPhone.length < 10) {
+      throw new Error('Por favor, informe um número de WhatsApp válido.');
+    }
+
+    if (!pass || pass.length < 4) {
+      throw new Error('A senha deve ter pelo menos 4 caracteres.');
     }
 
     const users = await db.getUsers();
@@ -132,12 +147,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check if phone or email already exists
     const duplicate = users.find((u) => {
       const uPhoneCleaned = u.phone ? u.phone.replace(/\D/g, '') : '';
-      const emailPattern = `${cleanPhone}@ltjogos.com`.toLowerCase();
-      return uPhoneCleaned === cleanPhone || (u.email && u.email.toLowerCase() === emailPattern);
+      const uEmail = u.email ? u.email.toLowerCase().trim() : '';
+      return (uEmail && uEmail === cleanEmail) || (uPhoneCleaned && uPhoneCleaned === cleanPhone);
     });
 
     if (duplicate) {
-      throw new Error('Telefone já cadastrado.');
+      if (duplicate.email && duplicate.email.toLowerCase().trim() === cleanEmail) {
+        throw new Error('Este e-mail já está cadastrado.');
+      }
+      throw new Error('Este telefone já está cadastrado.');
     }
 
     const userId = Math.random().toString(36).substring(2, 9);
@@ -155,21 +173,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    const isEmailAdmin = cleanEmail === 'tatuador.adrianoledio@gmail.com';
     const isPhoneAdmin = cleanPhone === '21982331392';
+    const isAdmin = isEmailAdmin || isPhoneAdmin;
+
     const newUser: User = {
       id: userId,
-      name,
-      email: isPhoneAdmin ? 'tatuador.adrianoledio@gmail.com' : `${cleanPhone}@ltjogos.com`,
+      name: cleanName,
+      email: cleanEmail,
       phone: cleanPhone,
       password: pass,
-      role: isPhoneAdmin ? 'admin' : 'user',
-      balance: isPhoneAdmin ? 999999 : 0,
+      role: isAdmin ? 'admin' : 'user',
+      balance: isAdmin ? 999999 : 0,
       earnings: 0,
       createdAt: new Date().toISOString(),
       dailyPrizeTotal: 0,
       lastPrizeDate: new Date().toISOString().split('T')[0],
       referrals: 0,
-      unlockFirstWithdrawal: isPhoneAdmin,
+      unlockFirstWithdrawal: isAdmin,
       referralLink,
       withdrawalsCount: 0,
       referredBy,

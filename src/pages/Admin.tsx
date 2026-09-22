@@ -344,7 +344,7 @@ export function Admin() {
         if (authRes.ok && (authData.access_token || authData.token || authData.data?.access_token)) {
           toast.success('Conexão PixUP testada e aprovada com sucesso! As credenciais são válidas.');
         } else {
-          const msg = authData.message || authData.error || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
+          const msg = authData.message || (typeof authData.error === 'string' ? authData.error : authData.error?.message) || `HTTP ${authRes.status}: Credenciais recusadas pela PixUP.`;
           toast.error(`Falha PixUP: ${msg}`);
         }
       } catch (directErr: any) {

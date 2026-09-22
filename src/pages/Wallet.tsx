@@ -95,28 +95,34 @@ export function Wallet() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Poll to check if transaction has completed
+  // Poll to check if transaction has completed ONLY when QR Code is actively shown
   useEffect(() => {
-    let intervalId: any;
+    if (!showQr || !activeTxId || !user?.id) return;
+
+    let isSubscribed = true;
 
     const checkPayment = async () => {
-      if (!user) return;
       try {
         // 1. Query server status check API (queries gateway directly if pending)
-        const statusRes = await fetch(`/api/payments/check-status?userId=${user.id}${activeTxId ? `&txId=${activeTxId}` : ''}`);
+        const statusRes = await fetch(`/api/payments/check-status?userId=${user.id}&txId=${activeTxId}`);
+        if (!isSubscribed) return;
         if (statusRes.ok) {
           const statusData = await statusRes.json();
-          if (statusData.approved) {
+          if (statusData && statusData.approved) {
             toast.success('Depósito via PIX aprovado com sucesso! Saldo creditado.');
             setShowQr(false);
             const confirmedAmount = parseFloat(amount) || 20;
             setActiveTxId(null);
-            const updatedTxs = await db.getTransactions();
-            setTransactions(updatedTxs.filter(t => t.userId === user.id));
+            const updatedTxs = await db.getTransactions().catch(() => []);
+            if (isSubscribed) {
+              setTransactions(Array.isArray(updatedTxs) ? updatedTxs.filter(t => t.userId === user.id) : []);
+            }
             if (refreshUser) {
               await refreshUser();
             }
-            setSuccessModal({ isOpen: true, amount: confirmedAmount });
+            if (isSubscribed) {
+              setSuccessModal({ isOpen: true, amount: confirmedAmount });
+            }
             return;
           }
         }
@@ -126,10 +132,11 @@ export function Wallet() {
 
       // 2. Fallback check local transactions list
       try {
-        const txs = await db.getTransactions();
-        const userTxs = txs.filter(t => t.userId === user.id);
+        const txs = await db.getTransactions().catch(() => []);
+        if (!isSubscribed) return;
+        const userTxs = Array.isArray(txs) ? txs.filter(t => t.userId === user.id) : [];
         const currentTx = activeTxId ? userTxs.find(t => t.id === activeTxId) : null;
-        if (currentTx && currentTx.status === 'completed' && showQr) {
+        if (currentTx && currentTx.status === 'completed') {
           toast.success('Depósito via PIX aprovado com sucesso! Saldo creditado.');
           setShowQr(false);
           const confirmedAmount = currentTx.amount || parseFloat(amount) || 20;
@@ -138,25 +145,23 @@ export function Wallet() {
           if (refreshUser) {
             await refreshUser();
           }
-          setSuccessModal({ isOpen: true, amount: confirmedAmount });
+          if (isSubscribed) {
+            setSuccessModal({ isOpen: true, amount: confirmedAmount });
+          }
         }
       } catch (e) {
         console.warn("Local tx search error:", e);
       }
     };
 
-    if (user) {
-      checkPayment();
-    }
-
-    if (showQr && user) {
-      intervalId = setInterval(checkPayment, 3000); // Check every 3 seconds
-    }
+    checkPayment();
+    const intervalId = setInterval(checkPayment, 3000); // Check every 3 seconds
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      isSubscribed = false;
+      clearInterval(intervalId);
     };
-  }, [showQr, user, activeTxId, refreshUser]);
+  }, [showQr, activeTxId, user?.id]);
 
   if (!user || loading) return (
     <div className="min-h-[50vh] flex items-center justify-center">
@@ -182,7 +187,7 @@ export function Wallet() {
         const pixupClientId = (settings?.pixupClientId || 'adrianoledio_f27410f412960abf').trim();
         const pixupClientSecret = (settings?.pixupClientSecret || '').trim();
         const pixupPostbackUrl = (settings?.pixupPostbackUrl || 'https://ltjogos.vercel.app/webhook').trim();
-        const pixupToken = ((settings?.pixupToken || settings?.mpAccessToken) || '').trim();
+        const pixupToken = (settings?.pixupToken || '').trim();
 
         if (!pixupClientSecret && !pixupToken) {
           toast.error('Client Secret da PixUP não configurado. Acesse o Painel Admin > Gateway para salvar suas credenciais.');
@@ -221,19 +226,30 @@ export function Wallet() {
             toast.success('PIX gerado com sucesso via PixUP! Escaneie ou copie o código.');
             pixSuccess = true;
           } else {
-            const errMsg = data?.error || data?.message || (response.status ? `Erro ${response.status} da PixUP.` : 'Falha ao gerar PIX.');
+            let errMsg = 'Falha ao gerar PIX.';
+            if (typeof data?.error === 'string') {
+              errMsg = data.error;
+            } else if (data?.error?.message && typeof data.error.message === 'string') {
+              errMsg = data.error.message;
+            } else if (typeof data?.message === 'string') {
+              errMsg = data.message;
+            } else if (response.status) {
+              errMsg = `Erro ${response.status} da PixUP. Verifique as credenciais no Admin.`;
+            }
             console.error("PixUP server response:", errMsg, data);
             toast.error(errMsg);
             pixSuccess = true;
           }
         } catch (apiErr: any) {
           console.error("API /api/payments/pix request error:", apiErr);
-          toast.error(apiErr.message || "Erro de conexão com o servidor.");
+          const errStr = typeof apiErr?.message === 'string' ? apiErr.message : "Erro de conexão com o servidor.";
+          toast.error(errStr);
         }
 
       } catch (error: any) {
         console.error("Erro no depósito PIX:", error);
-        toast.error('Erro de conexão ao solicitar o PIX.');
+        const errStr = typeof error?.message === 'string' ? error.message : 'Erro de conexão ao solicitar o PIX.';
+        toast.error(errStr);
       } finally {
         setIsGeneratingPix(false);
       }
@@ -251,13 +267,13 @@ export function Wallet() {
       return;
     }
     
-    if (val > user.balance) {
+    if (val > (user?.balance || 0)) {
       toast.error('Saldo disponível insuficiente.');
       return;
     }
 
     // Check referral requirement
-    if (user.referrals < referralsRequired) {
+    if ((user?.referrals || 0) < referralsRequired) {
       toast.error(`Você precisa indicar pelo menos ${referralsRequired} amigos para realizar um resgate!`);
       return;
     }
@@ -295,7 +311,7 @@ export function Wallet() {
           <div className="absolute top-0 right-0 w-20 h-20 bg-brand-primary/10 blur-2xl rounded-full -mr-10 -mt-10 transition-all group-hover:bg-brand-primary/20" />
           <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] relative z-10">Saldo Disponível</p>
           <p className="text-3.5xl font-display font-black text-brand-primary relative z-10">
-            R$ {user.balance.toFixed(2)}
+            R$ {typeof user?.balance === 'number' ? user.balance.toFixed(2) : Number(user?.balance || 0).toFixed(2)}
           </p>
           <div className="w-16 h-1 bg-brand-primary/20 rounded-full relative z-10" />
         </div>
@@ -581,9 +597,17 @@ export function Wallet() {
                 <div className="text-center space-y-6 py-6 animate-in fade-in">
                   <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl shadow-emerald-500/20">
                     {qrCodeBase64 ? (
-                      <img src={`data:image/jpeg;base64,${qrCodeBase64}`} alt="QR Code PIX" className="w-48 h-48 rounded-xl" />
+                      <img 
+                        src={qrCodeBase64.startsWith('data:') ? qrCodeBase64 : `data:image/png;base64,${qrCodeBase64}`} 
+                        alt="QR Code PIX" 
+                        className="w-48 h-48 rounded-xl object-contain mx-auto" 
+                      />
                     ) : qrCode ? (
-                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCode)}`} alt="QR Code PIX" className="w-48 h-48 rounded-xl" />
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCode)}`} 
+                        alt="QR Code PIX" 
+                        className="w-48 h-48 rounded-xl object-contain mx-auto" 
+                      />
                     ) : (
                       <QrCode size={150} className="text-black" />
                     )}
@@ -714,7 +738,7 @@ export function Wallet() {
                 <input
                   type="number"
                   min={minWithdrawal}
-                  max={user.balance}
+                  max={user?.balance || 0}
                   step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -766,14 +790,14 @@ export function Wallet() {
                       </div>
                       <div>
                         <p className="text-xs font-medium capitalize">{tx.type === 'win' ? 'Prêmio' : tx.type === 'bet' ? 'Aposta' : tx.type === 'deposit' ? 'Depósito' : 'Resgate'}</p>
-                        <p className="text-[10px] text-white/50">{new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        <p className="text-[10px] text-white/50">{new Date(tx.date || Date.now()).toLocaleDateString()} {new Date(tx.date || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <div className={`font-numeric font-bold text-sm ${
                         tx.type === 'deposit' || tx.type === 'win' ? 'text-emerald-400' : 'text-white'
                       }`}>
-                        {tx.type === 'deposit' || tx.type === 'win' ? '+' : '-'} R$ {tx.amount.toFixed(2)}
+                        {tx.type === 'deposit' || tx.type === 'win' ? '+' : '-'} R$ {typeof tx.amount === 'number' ? tx.amount.toFixed(2) : Number(tx.amount || 0).toFixed(2)}
                       </div>
                       <span className={`text-[8px] uppercase font-black tracking-widest px-1.5 py-0.5 rounded-full ${
                         tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :

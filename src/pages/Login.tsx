@@ -47,13 +47,13 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">Telefone</label>
+              <label className="block text-[10px] font-black text-white/40 uppercase tracking-widest ml-1">E-mail ou Telefone</label>
               <input
                 type="text"
                 value={phoneOrEmail}
                 onChange={(e) => setPhoneOrEmail(e.target.value)}
                 className="input-field"
-                placeholder="(99) 99999-9999"
+                placeholder="seu@email.com ou (00) 00000-0000"
                 required
               />
             </div>
