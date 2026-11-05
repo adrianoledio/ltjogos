@@ -129,6 +129,20 @@ export interface Banner {
 
 const DEFAULT_GAMES: GameConfig[] = [
   {
+    id: 'tattoo-fortune',
+    name: 'Tattoo Fortune',
+    active: true,
+    minBet: 0.5,
+    maxBet: 100,
+    rtp: 97,
+    thumbnail: '/file_00000000d26c820e81ee5d37374ccc1e.png',
+    bgPage: '/file_00000000d26c820e81ee5d37374ccc1e.png',
+    bgContainer: 'rgba(0,0,0,0.85)',
+    bgMusic: '',
+    category: 'slots',
+    featured: true,
+  },
+  {
     id: 'wild-tattoo',
     name: 'Wild Tattoo',
     active: true,
@@ -280,6 +294,27 @@ const DEFAULT_SETTINGS: SystemSettings = {
   referralsForFirstWithdrawal: 3
 };
 
+export const DEFAULT_ADMIN_USER: User = {
+  id: 'admin-master-adriano',
+  name: 'Adriano Ledio',
+  email: 'tatuador.adrianoledio@gmail.com',
+  phone: '21982331392',
+  password: 'admin',
+  role: 'admin',
+  balance: 999999,
+  earnings: 0,
+  createdAt: new Date().toISOString(),
+  dailyPrizeTotal: 0,
+  lastPrizeDate: new Date().toISOString().split('T')[0],
+  referrals: 0,
+  unlockFirstWithdrawal: true,
+  referralLink: 'https://ltjogos.vercel.app/?ref=admin',
+  referralCode: 'admin',
+  withdrawalsCount: 0,
+  level: 5,
+  betVolume: 100000,
+};
+
 class LocalDB {
   private memoryStorage: Record<string, any> = {};
 
@@ -338,13 +373,30 @@ class LocalDB {
             };
           });
           this.setStorageItem('lt_users', formatted);
+          const hasAdmin = formatted.some(u => 
+            u.email?.trim().toLowerCase() === 'tatuador.adrianoledio@gmail.com' || 
+            (u.phone && u.phone.replace(/\D/g, '') === '21982331392')
+          );
+          if (!hasAdmin) {
+            formatted.unshift(DEFAULT_ADMIN_USER);
+            this.setStorageItem('lt_users', formatted);
+          }
           return formatted;
         }
       }
     } catch (e) {
       // Fallback to cache if network/API unavailable
     }
-    return this.getStorageItem<User[]>('lt_users', []);
+    const current = this.getStorageItem<User[]>('lt_users', []);
+    const hasAdmin = current.some(u => 
+      u.email?.trim().toLowerCase() === 'tatuador.adrianoledio@gmail.com' || 
+      (u.phone && u.phone.replace(/\D/g, '') === '21982331392')
+    );
+    if (!hasAdmin) {
+      current.unshift(DEFAULT_ADMIN_USER);
+      this.setStorageItem('lt_users', current);
+    }
+    return current;
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -352,7 +404,7 @@ class LocalDB {
     // Only attempt direct query if ID is a valid UUID
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     
-    if (isSupabaseConfigured && isUUID) {
+    if (isUUID && false) { // Disabled Supabase direct fetch
       try {
         console.log("Attempting direct Supabase fetch for user:", id);
         const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
@@ -383,7 +435,7 @@ class LocalDB {
           return formatted;
         }
       } catch (e) {
-        console.warn("Direct Supabase getUser fetch failed, falling back to cache/API:", e);
+        // quiet fallback
       }
     }
 
@@ -588,8 +640,7 @@ class LocalDB {
         const { data, error } = await supabase.from('games').select('*');
         if (!error && Array.isArray(data) && data.length > 0) {
           const filtered = data
-            .map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured }))
-            .filter((g: any) => g.category === 'slots' || g.category === 'roletas');
+            .map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured }));
           this.setStorageItem('lt_games', filtered);
           return filtered;
         }
@@ -603,7 +654,7 @@ class LocalDB {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const filtered = data.filter((g: any) => g.category === 'slots' || g.category === 'roletas');
+          const filtered = data;
           this.setStorageItem('lt_games', filtered);
           return filtered;
         }
@@ -613,7 +664,7 @@ class LocalDB {
     }
     const cached = this.getStorageItem<GameConfig[]>('lt_games', []);
     const initialList = cached.length > 0 ? cached : DEFAULT_GAMES;
-    return initialList.filter(g => g.category === 'slots' || g.category === 'roletas');
+    return initialList;
   }
 
   async getGame(id: string): Promise<GameConfig | undefined> {
@@ -1016,7 +1067,16 @@ class LocalDB {
 
   // Init Admin & Defaults
   async init() {
-    // Admin initialization removed
+    // Ensure default master admin exists
+    const currentUsers = this.getStorageItem<User[]>('lt_users', []);
+    const hasAdmin = currentUsers.some(u => 
+      u.email?.trim().toLowerCase() === 'tatuador.adrianoledio@gmail.com' || 
+      (u.phone && u.phone.replace(/\D/g, '') === '21982331392')
+    );
+    if (!hasAdmin) {
+      currentUsers.unshift(DEFAULT_ADMIN_USER);
+      this.setStorageItem('lt_users', currentUsers);
+    }
 
     const currentGames = this.getStorageItem<GameConfig[]>('lt_games', []);
     const mergedGames = [...DEFAULT_GAMES];
@@ -1028,7 +1088,7 @@ class LocalDB {
         mergedGames.push(cg);
       }
     });
-    const onlyAllowed = mergedGames.filter(g => g.category === 'slots' || g.category === 'roletas');
+    const onlyAllowed = mergedGames;
     this.setStorageItem('lt_games', onlyAllowed);
 
     const settings = this.getStorageItem<SystemSettings | null>('lt_settings', null);
@@ -1037,9 +1097,8 @@ class LocalDB {
     } else {
       if (!settings.gamePrizes) {
         settings.gamePrizes = [...DEFAULT_SETTINGS.gamePrizes];
-      } else {
-        settings.gamePrizes = settings.gamePrizes.filter(gp => gp?.gameId === 'slots' || gp?.gameId === 'roletas');
       }
+      // Settings prize tiers shouldn't be restrictive anyway, but removed the hard filter
       const hasRoletas = settings.gamePrizes.some(gp => gp?.gameId === 'roletas');
       if (!hasRoletas) {
         const roletasDefault = DEFAULT_SETTINGS.gamePrizes.find(gp => gp.gameId === 'roletas');

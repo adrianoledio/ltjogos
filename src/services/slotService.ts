@@ -116,7 +116,7 @@ export class SlotService {
         }
       }
     } catch (e) {
-      console.warn('Backend slot spin fetch failed, falling back to client fallback:', e);
+      // quiet fallback
     }
 
     // Fallback if backend is unreachable

@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const DEFAULT_SUPABASE_URL = "https://mtodxdlvpsldxwtvtttk.supabase.co";
-const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10b2R4ZGx2cHNsZHh3dHZ0dHRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMTg5NjUsImV4cCI6MjEwNTU5NDk2NX0.By1JUfX28vpMSZS1fbItofVcq3X5MoFeT2m_QDhxH_E";
+const DEFAULT_SUPABASE_URL = "";
+const DEFAULT_SUPABASE_ANON_KEY = "";
 
 export function getValidSupabaseCredentials() {
   let url = process.env.VITE_SUPABASE_URL || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_URL : "") || DEFAULT_SUPABASE_URL;
@@ -12,11 +12,22 @@ export function getValidSupabaseCredentials() {
   return { url, key };
 }
 
+export function isConfiguredSupabase(url?: string, key?: string): boolean {
+  if (!url || !key) return false;
+  const cleanUrl = url.trim();
+  const cleanKey = key.trim();
+  if (!cleanUrl || !cleanKey) return false;
+  if (cleanUrl.includes("placeholder") || cleanKey.includes("placeholder")) return false;
+  if (cleanUrl.includes("mtodxdlvpsldxwtvtttk")) return false;
+  if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) return false;
+  return true;
+}
+
 const { url: supabaseUrl, key: supabaseKey } = getValidSupabaseCredentials();
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
+export const isSupabaseConfigured = isConfiguredSupabase(supabaseUrl, supabaseKey);
 
 export const supabase = createClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseKey || "placeholder"
+  isSupabaseConfigured ? supabaseUrl : "https://placeholder.supabase.co",
+  isSupabaseConfigured ? supabaseKey : "placeholder"
 );

@@ -19,6 +19,7 @@ import { Profile } from './pages/Profile';
 
 // Lazy loaded game pages for optimized initial bundle loading
 const MysticInk = React.lazy(() => import('./pages/games/MysticInk').then(m => ({ default: m.MysticInk })));
+const TattooFortune = React.lazy(() => import('./pages/games/TattooFortune').then(m => ({ default: m.TattooFortune })));
 const TattooCash = React.lazy(() => import('./pages/games/TattooCash').then(m => ({ default: m.TattooCash })));
 const RoulettaInk = React.lazy(() => import('./pages/games/RoulettaInk').then(m => ({ default: m.RoulettaInk })));
 const TattooSlot = React.lazy(() => import('./pages/games/TattooSlot').then(m => ({ default: m.TattooSlot })));
@@ -69,6 +70,7 @@ export default function App() {
                   <Route path="referral" element={<Referral />} />
                   <Route path="games" element={<Home />} />
                   <Route path="games/mystic-ink" element={<Suspense fallback={<GameLoadingFallback />}><MysticInk /></Suspense>} />
+                  <Route path="games/tattoo-fortune" element={<Suspense fallback={<GameLoadingFallback />}><TattooFortune /></Suspense>} />
                   <Route path="games/wild-tattoo" element={<Suspense fallback={<GameLoadingFallback />}><MysticInk /></Suspense>} />
                   <Route path="games/calavera-ink" element={<Suspense fallback={<GameLoadingFallback />}><CalaveraInk /></Suspense>} />
                   <Route path="games/tattoo-cash" element={<Suspense fallback={<GameLoadingFallback />}><TattooCash /></Suspense>} />

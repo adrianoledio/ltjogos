@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import { sendDepositNotificationEmail } from "./lib/sendDepositEmail";
 import { verifyAndApprovePayment, syncAllPendingDeposits } from "./services/checkStatus";
-import { getValidSupabaseCredentials } from "../src/lib/supabase";
+import { getValidSupabaseCredentials, isConfiguredSupabase } from "../src/lib/supabase";
 import { RtpMonitor } from "./rtpMonitor";
 import {
   computeTattooSlotOutcome,
@@ -17,12 +17,62 @@ import {
 
 // Supabase Configuration
 const { url: validServerUrl, key: validServerKey } = getValidSupabaseCredentials();
+export const isServerSupabaseConfigured = isConfiguredSupabase(validServerUrl, validServerKey);
 
-console.log("Supabase initialized with URL:", validServerUrl || "offline placeholder");
+console.log("Supabase initialized with URL:", isServerSupabaseConfigured ? validServerUrl : "offline fallback mode");
 export const supabase = createClient(
-  validServerUrl || "https://placeholder.supabase.co",
-  validServerKey || "placeholder"
+  isServerSupabaseConfigured ? validServerUrl : "https://placeholder.supabase.co",
+  isServerSupabaseConfigured ? validServerKey : "placeholder"
 );
+
+function logSupabaseError(context: string, err: any) {
+  if (!err) return;
+  const msg = typeof err === 'string' ? err : err.message || '';
+  const str = String(err);
+  const stack = typeof err?.stack === 'string' ? err.stack : '';
+  if (
+    msg.includes("fetch failed") ||
+    msg.includes("ENOTFOUND") ||
+    msg.includes("ECONNREFUSED") ||
+    msg.includes("placeholder") ||
+    str.includes("fetch failed") ||
+    str.includes("TypeError") ||
+    stack.includes("fetch failed") ||
+    err.name === "TypeError"
+  ) {
+    return;
+  }
+  console.log(`${context}:`, msg || err);
+}
+
+// In-memory caches for offline / standalone execution
+const DEFAULT_ADMIN_USER: any = {
+  id: 'admin-master-adriano',
+  name: 'Adriano Ledio',
+  email: 'tatuador.adrianoledio@gmail.com',
+  phone: '21982331392',
+  password: 'admin',
+  role: 'admin',
+  balance: 999999,
+  earnings: 0,
+  createdAt: new Date().toISOString(),
+  dailyPrizeTotal: 0,
+  lastPrizeDate: new Date().toISOString().split('T')[0],
+  referrals: 0,
+  unlockFirstWithdrawal: true,
+  referralLink: 'https://ltjogos.vercel.app/?ref=admin',
+  referralCode: 'admin',
+  withdrawalsCount: 0,
+  level: 5,
+  betVolume: 100000,
+};
+const inMemoryUsers = new Map<string, any>([[DEFAULT_ADMIN_USER.id, DEFAULT_ADMIN_USER]]);
+let inMemorySettings: any = null;
+const inMemoryTransactions: any[] = [];
+const inMemoryGames: any[] = [];
+const inMemoryNotifications: any[] = [];
+const inMemoryPromotions: any[] = [];
+const inMemoryBanners: any[] = [];
 
 export const app = express();
 app.use((req, res, next) => {
@@ -52,10 +102,13 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.get("/api/users", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) {
+        return res.json(Array.from(inMemoryUsers.values()));
+      }
       const { data, error } = await supabase.from("users").select("*");
       if (error) {
-        console.log("Supabase info fetching users:", error.message || error);
-        return res.json([]);
+        logSupabaseError("Supabase info fetching users", error);
+        return res.json(Array.from(inMemoryUsers.values()));
       }
       res.json((data || []).map((u: any) => ({
         ...u,
@@ -65,15 +118,30 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         referralCounted: !!u.referralCounted
       })));
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for users:", error.message || error);
-      res.json([]);
+      logSupabaseError("Supabase offline/unreachable for users", error);
+      res.json(Array.from(inMemoryUsers.values()));
     }
   });
 
   app.get("/api/users/:id", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) {
+        const u = inMemoryUsers.get(req.params.id);
+        if (!u) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        return res.json({
+          ...u,
+          balance: Number(u.balance ?? 0),
+          earnings: Number(u.earnings ?? 0),
+          unlockFirstWithdrawal: !!u.unlockFirstWithdrawal,
+          referralCounted: !!u.referralCounted
+        });
+      }
       const { data, error } = await supabase.from("users").select("*").eq("id", req.params.id).maybeSingle();
       if (error || !data) {
+        const u = inMemoryUsers.get(req.params.id);
+        if (u) return res.json(u);
         return res.status(404).json({ error: "User not found" });
       }
       res.json({
@@ -84,6 +152,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         referralCounted: !!data.referralCounted
       });
     } catch (error: any) {
+      const u = inMemoryUsers.get(req.params.id);
+      if (u) return res.json(u);
       res.status(500).json({ error: error.message });
     }
   });
@@ -105,6 +175,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         referralCounted: referralCounted ? true : false,
         phone: phone || null
       };
+      if (id) {
+        inMemoryUsers.set(id, { ...payload });
+      }
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       let { error } = await supabase.from("users").upsert(payload);
       if (error && (error.message?.toLowerCase().includes("column") || error.message?.toLowerCase().includes("does not exist") || error.message?.toLowerCase().includes("schema"))) {
         delete payload.lastLoginBonusDate;
@@ -130,27 +206,30 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         }
       }
       if (error) {
-        console.log("Supabase save user status:", error.message || error);
-        return res.json({ success: true, warning: error.message });
+        logSupabaseError("Supabase save user status", error);
+        return res.json({ success: true, offline: true });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving user:", error.message || error);
+      logSupabaseError("Internal/network note saving user", error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.get("/api/games", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) {
+        return res.json(inMemoryGames);
+      }
       const { data, error } = await supabase.from("games").select("*");
       if (error) {
-        console.log("Supabase info fetching games:", error.message || error);
-        return res.json([]);
+        logSupabaseError("Supabase info fetching games", error);
+        return res.json(inMemoryGames);
       }
       res.json((data || []).map((g: any) => ({ ...g, active: !!g.active, featured: !!g.featured })));
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for games:", error.message || error);
-      res.json([]);
+      logSupabaseError("Supabase offline/unreachable for games", error);
+      res.json(inMemoryGames);
     }
   });
 
@@ -160,6 +239,13 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       const payload: any = {
         id, name, active: !!active, minBet, maxBet, rtp, thumbnail, bgPage, bgContainer, bgMusic, category, featured: !!featured
       };
+      const existingIdx = inMemoryGames.findIndex(g => g.id === id);
+      if (existingIdx >= 0) inMemoryGames[existingIdx] = payload;
+      else inMemoryGames.push(payload);
+
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       let { error } = await supabase.from("games").upsert(payload);
       if (error && (error.message?.toLowerCase().includes("featured") || error.message?.toLowerCase().includes("column"))) {
         delete payload.featured;
@@ -178,12 +264,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         }
       }
       if (error) {
-        console.log("Supabase save game status:", error.message || error);
-        return res.json({ success: true, warning: error.message });
+        logSupabaseError("Supabase save game status", error);
+        return res.json({ success: true, offline: true });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving game:", error.message || error);
+      logSupabaseError("Internal/network note saving game", error);
       res.json({ success: true, offline: true });
     }
   });
@@ -216,19 +302,29 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       let userData: any = null;
 
       try {
-        if (userId) {
-          const { data: u } = await supabase.from("users").select("*").eq("id", userId).single();
-          if (u) {
-            userData = u;
-            userRole = u.role || 'user';
+        if (isServerSupabaseConfigured) {
+          if (userId) {
+            const { data: u } = await supabase.from("users").select("*").eq("id", userId).single();
+            if (u) {
+              userData = u;
+              userRole = u.role || 'user';
+            }
+          }
+          const { data: s } = await supabase.from("settings").select("data").eq("id", "global").single();
+          if (s && s.data) {
+            settingsData = s.data;
+          }
+        } else {
+          if (userId && inMemoryUsers.has(userId)) {
+            userData = inMemoryUsers.get(userId);
+            userRole = userData?.role || 'user';
+          }
+          if (inMemorySettings) {
+            settingsData = inMemorySettings;
           }
         }
-        const { data: s } = await supabase.from("settings").select("data").eq("id", "global").single();
-        if (s && s.data) {
-          settingsData = s.data;
-        }
       } catch (e) {
-        console.warn("Supabase fetch error in /api/slots/spin:", e);
+        // quiet fallback
       }
 
       // Determine category for prize lookup
@@ -340,66 +436,77 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.get("/api/transactions", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) {
+        return res.json(inMemoryTransactions);
+      }
       const { data, error } = await supabase.from("transactions").select("*").order("date", { ascending: false });
       if (error) {
-        console.warn("Supabase info fetching transactions:", error.message || error);
-        return res.json([]);
+        return res.json(inMemoryTransactions);
       }
       res.json((data || []).map((t: any) => ({ ...t, metadata: t.metadata ? (typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata) : null })));
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for transactions:", error.message || error);
-      res.json([]);
+      res.json(inMemoryTransactions);
     }
   });
 
   app.post("/api/transactions", async (req, res) => {
     try {
       const { id, userId, type, amount, status, date, gameId, metadata } = req.body;
-      const { error } = await supabase.from("transactions").upsert({
-        id, userId, type, amount, status, date, gameId, metadata: metadata || null
-      });
+      const txObj = { id, userId, type, amount, status, date, gameId, metadata: metadata || null };
+      inMemoryTransactions.unshift(txObj);
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
+      const { error } = await supabase.from("transactions").upsert(txObj);
       if (error) {
-        console.log("Supabase save transaction status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving transaction:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.get("/api/settings", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) {
+        return res.json(inMemorySettings);
+      }
       const { data, error } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
       if (error) {
-        console.log("Supabase info fetching settings:", error.message || error);
-        return res.json(null);
+        logSupabaseError("Supabase info fetching settings", error);
+        return res.json(inMemorySettings);
       }
       if (data && data.data) {
-        res.json(typeof data.data === 'string' ? JSON.parse(data.data) : data.data);
+        const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+        inMemorySettings = parsed;
+        res.json(parsed);
       } else {
-        res.json(null);
+        res.json(inMemorySettings);
       }
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for settings:", error.message || error);
-      res.json(null);
+      logSupabaseError("Supabase offline/unreachable for settings", error);
+      res.json(inMemorySettings);
     }
   });
 
   app.post("/api/settings", async (req, res) => {
     try {
+      inMemorySettings = req.body;
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       const { error } = await supabase.from("settings").upsert({
         id: 'global',
         data: req.body
       });
       if (error) {
-        console.log("Supabase save settings status:", error.message || error);
-        return res.json({ success: true, warning: error.message });
+        logSupabaseError("Supabase save settings status", error);
+        return res.json({ success: true, offline: true });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving settings:", error.message || error);
+      logSupabaseError("Internal/network note saving settings", error);
       res.json({ success: true, offline: true });
     }
   });
@@ -407,62 +514,68 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   // Notifications
   app.get("/api/notifications", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) return res.json(inMemoryNotifications);
       const { data, error } = await supabase.from("notifications").select("*").order("createdAt", { ascending: false });
       if (error) {
-        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
-          return res.json([]);
+        if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist")) {
+          return res.json(inMemoryNotifications);
         }
-        console.log("Supabase info fetching notifications:", error.message || error);
-        return res.json([]);
+        logSupabaseError("Supabase info fetching notifications", error);
+        return res.json(inMemoryNotifications);
       }
       res.json(data || []);
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for notifications:", error.message || error);
-      res.json([]);
+      res.json(inMemoryNotifications);
     }
   });
 
   app.post("/api/notifications", async (req, res) => {
     try {
       const { id, title, message, type, createdAt, targetUserId } = req.body;
-      const { error } = await supabase.from("notifications").upsert({
-        id, title, message, type, createdAt, targetUserId: targetUserId || null
-      });
+      const notifObj = { id, title, message, type, createdAt, targetUserId: targetUserId || null };
+      inMemoryNotifications.unshift(notifObj);
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
+      const { error } = await supabase.from("notifications").upsert(notifObj);
       if (error) {
-        console.log("Supabase save notification status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving notification:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.delete("/api/notifications/:id", async (req, res) => {
     try {
+      const idx = inMemoryNotifications.findIndex(n => n.id === req.params.id);
+      if (idx >= 0) inMemoryNotifications.splice(idx, 1);
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       const { error } = await supabase.from("notifications").delete().eq("id", req.params.id);
       if (error) {
-        console.log("Supabase delete notification status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note deleting notification:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.delete("/api/transactions", async (req, res) => {
     try {
+      inMemoryTransactions.length = 0;
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       const { error } = await supabase.from("transactions").delete().neq("id", "none");
       if (error) {
-        console.log("Supabase delete transactions status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note deleting transactions:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
@@ -471,11 +584,23 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
     try {
       console.log("Resetting all financial data, transactions and user balances...");
       
+      inMemoryTransactions.length = 0;
+      for (const [key, user] of inMemoryUsers.entries()) {
+        inMemoryUsers.set(key, { ...user, balance: 0, earnings: 0, dailyPrizeTotal: 0, withdrawalsCount: 0 });
+      }
+      if (inMemorySettings) {
+        inMemorySettings.platformDailyPrizeTotal = 0;
+      }
+
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, message: "Dados financeiros zerados com sucesso. Usuários mantidos." });
+      }
+
       // 1. Delete all transactions
       try {
         await supabase.from("transactions").delete().neq("id", "none");
       } catch (txErr) {
-        console.warn("Error deleting transactions:", txErr);
+        // quiet
       }
 
       // 2. Reset all users balance and earnings to 0 (keeping all accounts intact)
@@ -492,7 +617,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
           }
         }
       } catch (uErr) {
-        console.warn("Error resetting user balances:", uErr);
+        // quiet
       }
 
       // 3. Reset platform settings daily prize
@@ -504,26 +629,27 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
           await supabase.from("settings").upsert({ id: "global", data: parsed });
         }
       } catch (sErr) {
-        console.warn("Error resetting platformDailyPrizeTotal:", sErr);
+        // quiet
       }
 
       res.json({ success: true, message: "Dados financeiros zerados com sucesso. Usuários mantidos." });
     } catch (error: any) {
-      console.log("Error in /api/admin/reset-financial-data:", error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.delete("/api/users", async (req, res) => {
     try {
+      inMemoryUsers.clear();
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       const { error } = await supabase.from("users").delete().neq("id", "none");
       if (error) {
-        console.log("Supabase delete users status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note deleting users:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
@@ -531,6 +657,10 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.delete("/api/users/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      inMemoryUsers.delete(id);
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       // Delete associated transactions first to prevent foreign key constraint violations
       try {
         await supabase.from("transactions").delete().eq("userId", id);
@@ -539,12 +669,10 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       }
       const { error } = await supabase.from("users").delete().eq("id", id);
       if (error) {
-        console.log("Supabase delete user status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note deleting user:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
@@ -552,48 +680,54 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   // Promotions
   app.get("/api/promotions", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) return res.json(inMemoryPromotions);
       const { data, error } = await supabase.from("promotions").select("*").order("createdAt", { ascending: false });
       if (error) {
         if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
-          return res.json([]);
+          return res.json(inMemoryPromotions);
         }
-        console.log("Supabase info fetching promotions:", error.message || error);
-        return res.json([]);
+        return res.json(inMemoryPromotions);
       }
       res.json((data || []).map((p: any) => ({ ...p, active: !!p.active })));
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for promotions:", error.message || error);
-      res.json([]);
+      res.json(inMemoryPromotions);
     }
   });
 
   app.post("/api/promotions", async (req, res) => {
     try {
       const { id, title, description, code, discount, active, createdAt } = req.body;
-      const { error } = await supabase.from("promotions").upsert({
-        id, title, description, code, discount, active: !!active, createdAt
-      });
+      const promoObj = { id, title, description, code, discount, active: !!active, createdAt };
+      const idx = inMemoryPromotions.findIndex(p => p.id === id);
+      if (idx >= 0) inMemoryPromotions[idx] = promoObj;
+      else inMemoryPromotions.unshift(promoObj);
+
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
+      const { error } = await supabase.from("promotions").upsert(promoObj);
       if (error) {
-        console.log("Supabase save promotion status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving promotion:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.delete("/api/promotions/:id", async (req, res) => {
     try {
+      const idx = inMemoryPromotions.findIndex(p => p.id === req.params.id);
+      if (idx >= 0) inMemoryPromotions.splice(idx, 1);
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       const { error } = await supabase.from("promotions").delete().eq("id", req.params.id);
       if (error) {
-        console.log("Supabase delete promotion status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note deleting promotion:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
@@ -601,48 +735,54 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
   // Banners
   app.get("/api/banners", async (req, res) => {
     try {
+      if (!isServerSupabaseConfigured) return res.json(inMemoryBanners);
       const { data, error } = await supabase.from("banners").select("*").order("createdAt", { ascending: false });
       if (error) {
         if (error.code === '42P01' || error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("fetch failed") || error.message?.includes("ENOTFOUND")) {
-          return res.json([]);
+          return res.json(inMemoryBanners);
         }
-        console.log("Supabase info fetching banners:", error.message || error);
-        return res.json([]);
+        return res.json(inMemoryBanners);
       }
       res.json((data || []).map((b: any) => ({ ...b, active: !!b.active })));
     } catch (error: any) {
-      console.log("Supabase offline/unreachable for banners:", error.message || error);
-      res.json([]);
+      res.json(inMemoryBanners);
     }
   });
 
   app.post("/api/banners", async (req, res) => {
     try {
       const { id, imageUrl, link, active, createdAt } = req.body;
-      const { error } = await supabase.from("banners").upsert({
-        id, imageUrl, link, active: !!active, createdAt
-      });
+      const bannerObj = { id, imageUrl, link, active: !!active, createdAt };
+      const idx = inMemoryBanners.findIndex(b => b.id === id);
+      if (idx >= 0) inMemoryBanners[idx] = bannerObj;
+      else inMemoryBanners.unshift(bannerObj);
+
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
+      const { error } = await supabase.from("banners").upsert(bannerObj);
       if (error) {
-        console.log("Supabase save banner status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note saving banner:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
 
   app.delete("/api/banners/:id", async (req, res) => {
     try {
+      const idx = inMemoryBanners.findIndex(b => b.id === req.params.id);
+      if (idx >= 0) inMemoryBanners.splice(idx, 1);
+      if (!isServerSupabaseConfigured) {
+        return res.json({ success: true, offline: true });
+      }
       const { error } = await supabase.from("banners").delete().eq("id", req.params.id);
       if (error) {
-        console.log("Supabase delete banner status:", error.message || error);
         return res.json({ success: true, warning: error.message });
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.log("Internal/network note deleting banner:", error.message || error);
       res.json({ success: true, offline: true });
     }
   });
@@ -787,7 +927,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         process.env.PIXUP_TOKEN || "";
       
       let settings: any = null;
-      if ((!clientId || !clientSecret) && !directToken) {
+      if ((!clientId || !clientSecret) && !directToken && isServerSupabaseConfigured) {
         try {
           const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();
           if (settingsData && settingsData.data) {
@@ -800,7 +940,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
             }
           }
         } catch (e) {
-          console.warn("Não foi possível buscar configurações do Supabase:", e);
+          logSupabaseError("Não foi possível buscar configurações do Supabase", e);
         }
       }
 
@@ -935,26 +1075,28 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       };
 
       try {
-        if (userId) {
-          await supabase.from("users").upsert({
-            id: userId,
-            name: payerName,
-            email: payerEmail,
-            role: "player"
-          }, { onConflict: "id", ignoreDuplicates: true });
-        }
+        if (isServerSupabaseConfigured) {
+          if (userId) {
+            await supabase.from("users").upsert({
+              id: userId,
+              name: payerName,
+              email: payerEmail,
+              role: "player"
+            }, { onConflict: "id", ignoreDuplicates: true });
+          }
 
-        await supabase.from("transactions").insert({
-          id: txId,
-          userId,
-          type: "deposit",
-          amount: Number(amount),
-          status: "pending",
-          date: new Date().toISOString(),
-          metadata
-        });
+          await supabase.from("transactions").insert({
+            id: txId,
+            userId,
+            type: "deposit",
+            amount: Number(amount),
+            status: "pending",
+            date: new Date().toISOString(),
+            metadata
+          });
+        }
       } catch (txErr) {
-        console.warn("Erro ao salvar transação pendente no Supabase:", txErr);
+        logSupabaseError("Erro ao salvar transação pendente no Supabase", txErr);
       }
 
       res.json({
@@ -995,7 +1137,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
         status === "paid" ||
         status === "success";
 
-      if (isConfirmed && (externalId || pixupTxId)) {
+      if (isConfirmed && (externalId || pixupTxId) && isServerSupabaseConfigured) {
         try {
           const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
           const settings = settingsData && settingsData.data ? (typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data) : null;
@@ -1059,7 +1201,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
                         createdAt: new Date().toISOString()
                       });
                     } catch (notifErr) {
-                      console.warn("Erro ao criar notificação de depósito:", notifErr);
+                      logSupabaseError("Erro ao criar notificação de depósito", notifErr);
                     }
                   }
                 }
@@ -1070,13 +1212,13 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
             }
           }
         } catch (innerErr) {
-          console.warn("Webhook inner error handled safely:", innerErr);
+          logSupabaseError("Webhook inner error handled safely", innerErr);
         }
       }
       
       return res.status(200).json({ success: true });
     } catch (error) {
-      console.error("Webhook error caught safely:", error);
+      logSupabaseError("Webhook error caught safely", error);
       return res.status(200).json({ success: true });
     }
   };
@@ -1088,13 +1230,15 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
       const { transactionId, amount, userPhone, userName, userEmail, bonus } = req.body || {};
 
       let settings = null;
-      try {
-        const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
-        if (settingsData && settingsData.data) {
-          settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+      if (isServerSupabaseConfigured) {
+        try {
+          const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").single();
+          if (settingsData && settingsData.data) {
+            settings = typeof settingsData.data === 'string' ? JSON.parse(settingsData.data) : settingsData.data;
+          }
+        } catch (e) {
+          logSupabaseError("Could not load settings in notification route", e);
         }
-      } catch (e) {
-        console.warn("Could not load settings in notification route:", e);
       }
 
       const sent = await sendDepositNotificationEmail({

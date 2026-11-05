@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendDepositNotificationEmail } from "../lib/sendDepositEmail";
+import { getValidSupabaseCredentials, isConfiguredSupabase } from "../../src/lib/supabase";
 
 function getSupabaseEnv() {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://mtodxdlvpsldxwtvtttk.supabase.co";
-  const key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10b2R4ZGx2cHNsZHh3dHZ0dHRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMTg5NjUsImV4cCI6MjEwNTU5NDk2NX0.By1JUfX28vpMSZS1fbItofVcq3X5MoFeT2m_QDhxH_E";
-  return { url, key };
+  const { url, key } = getValidSupabaseCredentials();
+  const isConfigured = isConfiguredSupabase(url, key);
+  return { url, key, isConfigured };
 }
 
 export async function approvePendingTx(supabase: any, tx: any, settings: any) {
@@ -57,10 +58,10 @@ export async function approvePendingTx(supabase: any, tx: any, settings: any) {
 }
 
 export async function syncAllPendingDeposits() {
-  const { url: supabaseUrl, key: supabaseKey } = getSupabaseEnv();
+  const { url: supabaseUrl, key: supabaseKey, isConfigured } = getSupabaseEnv();
 
-  if (!supabaseUrl || !supabaseKey) {
-    return { approvedCount: 0, error: "Supabase not configured" };
+  if (!isConfigured || !supabaseUrl || !supabaseKey) {
+    return { approvedCount: 0, message: "Supabase not configured (offline mode)" };
   }
 
   const supabase = createClient(supabaseUrl.startsWith("http") ? supabaseUrl : `https://${supabaseUrl}`, supabaseKey);
@@ -94,13 +95,13 @@ export async function syncAllPendingDeposits() {
 }
 
 export async function verifyAndApprovePayment(paymentId?: string, txId?: string, userId?: string) {
-  await syncAllPendingDeposits().catch(e => console.warn("syncAllPendingDeposits error:", e));
+  const { url: supabaseUrl, key: supabaseKey, isConfigured } = getSupabaseEnv();
 
-  const { url: supabaseUrl, key: supabaseKey } = getSupabaseEnv();
-
-  if (!supabaseUrl || !supabaseKey) {
-    return { approved: false, reason: "Supabase not configured" };
+  if (!isConfigured || !supabaseUrl || !supabaseKey) {
+    return { approved: false, reason: "Supabase not configured (offline mode)" };
   }
+
+  await syncAllPendingDeposits().catch(() => {});
 
   const supabase = createClient(supabaseUrl.startsWith("http") ? supabaseUrl : `https://${supabaseUrl}`, supabaseKey);
   const { data: settingsData } = await supabase.from("settings").select("data").eq("id", "global").maybeSingle();

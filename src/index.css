@@ -118,3 +118,12 @@
   0%, 100% { opacity: 0.1; transform: scale(1.1); }
   50% { opacity: 0.2; transform: scale(1.15); }
 }
+
+@keyframes spin-reels {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+.animate-spin-reels {
+  animation: spin-reels 0.15s linear infinite;
+}

@@ -401,7 +401,7 @@ export function InkReveal() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white pb-20 relative overflow-hidden flex flex-col items-center font-sans">
+    <div className="fixed inset-0 flex flex-col bg-slate-950 text-white select-none overflow-hidden h-screen w-screen z-50 items-center font-sans">
       
       {/* Visual background atmospheric backdrop */}
       <div 
@@ -411,7 +411,7 @@ export function InkReveal() {
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent z-0 pointer-events-none" />
 
       {/* App wrapper */}
-      <div className="w-full max-w-[440px] px-4 flex flex-col relative z-10 flex-1 justify-between py-2">
+      <div className="w-full max-w-[440px] px-4 flex flex-col relative z-10 flex-1 justify-between py-2 overflow-hidden h-full">
         
         {/* Navigation bar */}
         <div className="flex items-center justify-between py-2 border-b border-white/5">

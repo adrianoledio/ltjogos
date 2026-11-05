@@ -500,7 +500,7 @@ export function YakuzaInk() {
   };
 
   return (
-    <div className="h-full max-h-full w-full flex-1 bg-[#08050e] text-white flex flex-col justify-between relative overflow-hidden select-none">
+    <div className="fixed inset-0 bg-[#08050e] text-white flex flex-col justify-between overflow-hidden select-none h-screen w-screen z-50">
       {/* Dynamic Background particles / neon mist */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-900/10 via-[#08050e] to-[#040207] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,_var(--tw-gradient-stops))] from-pink-900/10 via-transparent to-transparent pointer-events-none" />

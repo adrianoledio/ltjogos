@@ -20,7 +20,10 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login(phoneOrEmail, password);
+    setError('');
+    const cleanIdentifier = phoneOrEmail.trim();
+    const cleanPass = password.trim();
+    const success = await login(cleanIdentifier, cleanPass);
     if (success) {
       navigate('/app');
     } else {
@@ -51,9 +54,13 @@ export function Login() {
               <input
                 type="text"
                 value={phoneOrEmail}
-                onChange={(e) => setPhoneOrEmail(e.target.value)}
+                onChange={(e) => {
+                  setPhoneOrEmail(e.target.value);
+                  if (error) setError('');
+                }}
                 className="input-field"
                 placeholder="seu@email.com ou (00) 00000-0000"
+                autoComplete="username"
                 required
               />
             </div>
@@ -62,9 +69,13 @@ export function Login() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
                 className="input-field"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
             </div>

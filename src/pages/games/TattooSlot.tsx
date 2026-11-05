@@ -958,7 +958,7 @@ export function TattooSlot() {
   };
 
   return (
-    <div className="h-screen max-h-screen bg-black text-white relative font-sans flex flex-col justify-between overflow-hidden select-none">
+    <div className="fixed inset-0 bg-black text-white font-sans flex flex-col justify-between overflow-hidden select-none h-screen w-screen z-50">
       {/* Absolute Header with Glowing Lights */}
       <div className="absolute top-0 left-0 right-0 h-44 pointer-events-none z-0 overflow-hidden">
         {/* Pink Spotlight (Left) */}

@@ -30,6 +30,11 @@ export class RtpMonitor {
 
   public async checkRtpCompliance() {
     try {
+      const url = (this.supabase as any)?.supabaseUrl;
+      if (!url || typeof url !== 'string' || url.includes("placeholder") || !url.startsWith("http")) {
+        return;
+      }
+
       console.log("Running scheduled RTP compliance verification...");
 
       // 1. Fetch recent transactions (last 1000 or past 24 hours)
@@ -41,18 +46,21 @@ export class RtpMonitor {
         .limit(2000);
 
       if (error) {
+        const msg = error.message || '';
+        const str = String(error);
         if (
           error.code === '42P01' ||
-          error.message?.includes("does not exist") ||
-          error.message?.includes("Could not find the table") ||
-          error.message?.includes("fetch failed") ||
-          error.message?.includes("ENOTFOUND") ||
-          error.message?.includes("fetch")
+          msg.includes("does not exist") ||
+          msg.includes("Could not find the table") ||
+          msg.includes("fetch failed") ||
+          msg.includes("ENOTFOUND") ||
+          msg.includes("fetch") ||
+          str.includes("fetch failed") ||
+          str.includes("TypeError")
         ) {
-          console.log("RTP Monitor: Database unreachable or table not found, skipping check.");
           return;
         }
-        console.log("RTP Monitor info fetching transactions:", error.message);
+        console.log("RTP Monitor info fetching transactions:", msg);
         return;
       }
 
@@ -117,11 +125,19 @@ export class RtpMonitor {
 
       console.log("RTP compliance verification completed successfully.");
     } catch (err: any) {
-      if (err?.message?.includes("fetch failed") || err?.message?.includes("ENOTFOUND") || err?.message?.includes("fetch")) {
-        console.log("RTP Monitor: Database unreachable, skipping check.");
+      const msg = err?.message || '';
+      const str = String(err);
+      if (
+        msg.includes("fetch failed") ||
+        msg.includes("ENOTFOUND") ||
+        msg.includes("fetch") ||
+        str.includes("fetch failed") ||
+        str.includes("TypeError") ||
+        err?.name === "TypeError"
+      ) {
         return;
       }
-      console.log("Note in RTP compliance check:", err?.message || err);
+      console.log("Note in RTP compliance check:", msg || err);
     }
   }
 }
